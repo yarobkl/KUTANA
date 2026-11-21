@@ -1,0 +1,50 @@
+name: KUTANA iOS device archive
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  device-archive:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Archive for real iPhone without code signing
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project KUTANA.xcodeproj \
+            -scheme KUTANA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/KUTANADeviceDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee "$RUNNER_TEMP/kutana-device-archive.log"
+      - name: Check application in archive
+        run: |
+          test -d "$RUNNER_TEMP/KUTANA.xcarchive/Products/Applications/KUTANA.app"
+      - name: Upload Xcode archive diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUTANA-device-archive-diagnostics
+          path: ${{ runner.temp }}/kutana-device-archive.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload unsigned device archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUTANA-unsigned-device-archive
+          path: ${{ runner.temp }}/KUTANA.xcarchive
+          if-no-files-found: error
+          retention-days: 7
