@@ -47,7 +47,7 @@ final class DraftRequestProtocol: URLProtocol {
             assert(request.url?.path == "/rest/v1/rpc/create_job_draft")
             assert(request.httpMethod == "POST")
             assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-test")
-            let body = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+            let body = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String: Any]
             assert(body["p_title"] as? String == "Chargé de communication")
             assert(body["p_company"] as? String == "Exemple Congo")
             assert(body["author_id"] == nil)
@@ -59,7 +59,7 @@ final class DraftRequestProtocol: URLProtocol {
         assert(returned == identifier)
         DraftRequestProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/create_listing_draft")
-            let body = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+            let body = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String: Any]
             assert(body["p_price_xaf"] as? Int == 120_000)
             assert(body["seller_id"] == nil)
             return (200, Data("\"\(identifier.uuidString.lowercased())\"".utf8))

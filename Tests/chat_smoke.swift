@@ -57,7 +57,7 @@ final class ChatTestProtocol: URLProtocol {
             assert(request.url?.path == "/rest/v1/rpc/send_conversation_message")
             assert(request.httpMethod == "POST")
             assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer access")
-            let json = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String:String]
+            let json = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
             assert(json["p_body"] == "Bonjour")
             assert(json["p_conversation"] == uuid.uuidString.lowercased())
             assert(json["sender_id"] == nil)

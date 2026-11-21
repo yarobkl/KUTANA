@@ -7,8 +7,8 @@ swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift Tests/domain_smoke.
 swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift iOS/KUTANA/Core/Networking/AuthService.swift Tests/network_smoke.swift -o /tmp/kutana-network-smoke
 /tmp/kutana-network-smoke
 
-swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift Tests/drafts_smoke.swift -o /tmp/kutana-drafts-smoke
+swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift Tests/HTTPBodyFixture.swift Tests/drafts_smoke.swift -o /tmp/kutana-drafts-smoke
 /tmp/kutana-drafts-smoke
 
-swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift iOS/KUTANA/Core/Networking/AccessTokenMetadata.swift Tests/chat_smoke.swift -o /tmp/kutana-chat-smoke
+swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift iOS/KUTANA/Core/Networking/AccessTokenMetadata.swift Tests/HTTPBodyFixture.swift Tests/chat_smoke.swift -o /tmp/kutana-chat-smoke
 /tmp/kutana-chat-smoke

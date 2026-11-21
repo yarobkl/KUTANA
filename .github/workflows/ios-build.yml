@@ -28,7 +28,7 @@ jobs:
           swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift \
             iOS/KUTANA/Core/Domain/Drafts.swift \
             iOS/KUTANA/Core/Networking/Backend.swift \
-            Tests/drafts_smoke.swift -o /tmp/kutana-drafts
+            Tests/HTTPBodyFixture.swift Tests/drafts_smoke.swift -o /tmp/kutana-drafts
           /tmp/kutana-drafts
       - name: Private chat transport tests
         run: |
@@ -36,7 +36,7 @@ jobs:
             iOS/KUTANA/Core/Domain/Drafts.swift \
             iOS/KUTANA/Core/Networking/Backend.swift \
             iOS/KUTANA/Core/Networking/AccessTokenMetadata.swift \
-            Tests/chat_smoke.swift -o /tmp/kutana-chat
+            Tests/HTTPBodyFixture.swift Tests/chat_smoke.swift -o /tmp/kutana-chat
           /tmp/kutana-chat
       - name: Generate Xcode project
         run: xcodegen generate
