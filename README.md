@@ -1,23 +1,39 @@
-# KUTANA
+# KUTANA — iOS
 
-Application iOS native SwiftUI dédiée aux offres d'emploi et aux petites annonces au Congo-Brazzaville.
+Application mobile native SwiftUI conçue pour les offres d'emploi et les petites annonces au Congo-Brazzaville. Ce dépôt est **indépendant** de COVI, BININGA et de l'ancien Congo Emploi.
 
-## État du projet
+## Organisation
 
-- Dépôt privé réservé à KUTANA.
-- Backend indépendant Supabase : projet `xwhjzftrzikgqweowtus` (région Paris).
-- Version locale de référence : KUTANA v0.10 (préparation du build).
-- **Le code source complet n'est pas encore publié dans ce dépôt. Aucun build iOS n'a été validé à ce stade.**
+- `iOS/KUTANA/` : application iOS, interface SwiftUI, domaine, authentification et réseau.
+- `project.yml` : génération du projet Xcode avec XcodeGen ; bundle ID `fr.yaroconsulting.kutana`.
+- `Tests/` : tests Swift de domaine, réseau/authentification, brouillons et messagerie.
+- `supabase/migrations/` : schéma SQL et politiques de sécurité du **projet Supabase KUTANA uniquement**.
+- `.github/workflows/ios-build.yml` : pipeline de compilation pour simulateur iOS sur macOS, sans signature.
+- `docs/` : notes d'architecture, état d'avancement et références de design.
 
-## Architecture cible
+## État vérifié
 
-- iOS : SwiftUI natif.
-- Backend : base KUTANA exclusivement, PostgreSQL, authentification Supabase, RLS.
-- Fonctionnalités : emploi, candidatures, annonces, messagerie privée.
-- Livraison : GitHub Actions sur macOS, puis TestFlight après tests et signature.
+- Les quatre suites de tests Swift passent en local (environnement Linux).
+- Le backend dédié Supabase KUTANA existe et ses neuf migrations ont déjà été appliquées.
+- La compilation sur Xcode et le fonctionnement sur iPhone **ne sont pas encore confirmés** ; GitHub Actions doit fournir le premier diagnostic réel.
+- Une archive `KUTANA.app` de simulateur **ne constitue pas un binaire TestFlight**. La signature, l'archive iOS et la distribution App Store Connect interviendront après validation du build.
+- Les maquettes approuvées n'ont pas encore été contrôlées au pixel près sur simulateur.
 
-## Isolation
+## Lancer les tests localement
 
-Aucun lien technique avec COVI, BININGA ni l'ancien Congo Emploi.
+```bash
+bash Tests/run-smoke.sh
+```
 
-Ne jamais publier de clé `service_role`, de clé secrète Supabase, de certificat Apple ou de jeton d'authentification.
+Sur un Mac équipé d'Xcode et de XcodeGen :
+
+```bash
+xcodegen generate
+xcodebuild -project KUTANA.xcodeproj -scheme KUTANA -configuration Debug \
+  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+## Confidentialité
+
+Seule la clé **publique** Supabase est utilisée par l'application. Ne jamais commiter de jetons Apple, `.p8`, certificats, secrets de service ou fichiers `.env` privés. Les données du serveur appartiennent exclusivement à KUTANA.

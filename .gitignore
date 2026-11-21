@@ -1,0 +1,13 @@
+.DS_Store
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.build/
+KUTANA.xcodeproj/
+.env
+.env.*
+!.env.example
+Secrets.xcconfig
+*.p12
+*.p8
+*.mobileprovision
