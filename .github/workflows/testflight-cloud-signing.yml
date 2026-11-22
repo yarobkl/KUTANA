@@ -36,8 +36,9 @@ jobs:
               exit 1
             fi
           done
-          xcodebuild -version
-          if ! xcodebuild -version | grep -Eq '^Xcode 2[6-9]'; then
+          XCODE_VERSION_OUTPUT="$(xcodebuild -version)"
+          printf '%s\n' "$XCODE_VERSION_OUTPUT"
+          if ! grep -Eq '^Xcode 2[6-9]([.]|$)' <<< "$XCODE_VERSION_OUTPUT"; then
             echo "::error::Xcode 26 or later is required."
             exit 1
           fi
