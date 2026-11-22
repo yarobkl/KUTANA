@@ -4,3 +4,4 @@ App Store Connect app ID: 6837966878
 Bundle ID: fr.yaroconsulting.kutana
 This file is an intentional one-time trigger for the Apple cloud-signing GitHub Actions workflow.
 No private credentials are stored here.
+Retry after fixing Xcode 26 version detection; still a single manual release attempt.
