@@ -53,7 +53,7 @@ final class PublicationProtocol: URLProtocol {
             assert(request.url?.path == "/rest/v1/rpc/publish_job")
             assert(request.httpMethod == "POST")
             assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
-            let payload = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String:String]
+            let payload = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
             assert(payload["p_job"] == id.uuidString.lowercased())
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
@@ -69,7 +69,7 @@ final class PublicationProtocol: URLProtocol {
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/withdraw_publication")
-            let payload = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String:String]
+            let payload = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
             assert(payload["p_kind"] == "listing")
             assert(payload["p_id"] == id.uuidString.lowercased())
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
@@ -86,7 +86,7 @@ final class PublicationProtocol: URLProtocol {
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/report_content")
-            let payload = try! JSONSerialization.jsonObject(with: request.httpBody!) as! [String:String]
+            let payload = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
             assert(payload["p_kind"] == "job")
             assert(payload["p_reason"] == "Contenu suspect")
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
