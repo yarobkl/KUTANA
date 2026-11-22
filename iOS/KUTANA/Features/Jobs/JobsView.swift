@@ -56,12 +56,32 @@ struct JobsView: View {
                         NavigationLink {
                             JobDetailView(job: job, preview: isPreview)
                         } label: {
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text(job.title).font(.headline)
-                                Text(job.company).font(.subheadline)
-                                Label("\(job.city) · \(job.contract_type)", systemImage: "mappin")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }.padding(.vertical, 6)
+                            HStack(alignment: .top, spacing: 14) {
+                                Image(systemName: "building.2.crop.circle")
+                                    .font(.system(size: 25, weight: .light))
+                                    .foregroundStyle(KutanaTheme.blue)
+                                    .frame(width: 48, height: 48)
+                                    .background(Color(.secondarySystemGroupedBackground),
+                                                in: RoundedRectangle(cornerRadius: 13))
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 7) {
+                                    Text(job.title)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                    Text(job.company)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 8) {
+                                        Label(job.city, systemImage: "mappin")
+                                        Text(job.contract_type)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(KutanaTheme.blue)
+                                }
+                            }
+                            .padding(.vertical, 9)
                         }
                     }
                     if visible.isEmpty && !loading && hasLoaded {
