@@ -95,6 +95,35 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+
+    /// Only applications attached to the signed-in recruiter's jobs are visible through RLS.
+    func receivedApplications(ownerID: UUID, accessToken: String) async throws -> [RecruiterApplication] {
+        try await get("applications", query: [
+            URLQueryItem(name: "select", value: "id,job_id,candidate_id,status,created_at,jobs!inner(title,company,author_id)"),
+            URLQueryItem(name: "jobs.author_id", value: "eq.\(ownerID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
+    /// The recruiter-only SQL RPC validates ownership and records an audit event.
+    func changeApplicationStatus(id: UUID, next: ApplicationState, accessToken: String) async throws {
+        guard !accessToken.isEmpty, next != .submitted else { throw BackendError.invalidResponse }
+        let url = configuration.endpoint.appending(path: "rest/v1/rpc/change_application_status")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "p_application": id.uuidString.lowercased(), "p_next": next.rawValue
+        ])
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+    }
+
     func myApplications(accessToken: String) async throws -> [ApplicationWithJob] {
         try await get("applications", query: [
             URLQueryItem(name: "select", value: "id,job_id,status,created_at,jobs(title,company)"),
