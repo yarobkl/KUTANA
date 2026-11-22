@@ -1,0 +1,118 @@
+name: KUTANA TestFlight (Apple cloud signing)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kutana-cloud-testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 65
+    env:
+      APPLE_TEAM_ID: UK4UQCQ57G
+      ASC_API_KEY_ID: ${{ secrets.KUTANA_ASC_API_KEY_ID }}
+      ASC_API_ISSUER_ID: ${{ secrets.KUTANA_ASC_API_ISSUER_ID }}
+      ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Apple API access without revealing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_PRIVATE_KEY_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing KUTANA_${name}. Add it in Settings > Secrets and variables > Actions."
+              exit 1
+            fi
+          done
+          xcodebuild -version
+          if ! xcodebuild -version | grep -Eq '^Xcode 2[6-9]'; then
+            echo "::error::Xcode 26 or later is required."
+            exit 1
+          fi
+          echo "Three Apple API credentials are present; no .p12 or manual provisioning profile is needed for this workflow."
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare temporary App Store Connect key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/AuthKey_${ASC_API_KEY_ID}.p8"
+          printf '%s' "$ASC_API_PRIVATE_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          if ! grep -q 'BEGIN PRIVATE KEY' "$key_path"; then
+            echo "::error::The API key must contain a base64-encoded Apple .p8 file."
+            exit 1
+          fi
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Generate native Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          xcodebuild -list -project KUTANA.xcodeproj
+
+      - name: Archive with Apple-managed code signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project KUTANA.xcodeproj \
+            -scheme KUTANA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION='1.0.0' \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Export and upload to App Store Connect
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+          options = {
+              "method": "app-store-connect",
+              "destination": "upload",
+              "signingStyle": "automatic",
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "manageAppVersionAndBuildNumber": False,
+          }
+          with (Path(os.environ["RUNNER_TEMP"]) / "KUTANA-ExportOptions.plist").open("wb") as output:
+              plistlib.dump(options, output)
+          PY
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
+            -exportPath "$RUNNER_TEMP/KUTANA-upload" \
+            -exportOptionsPlist "$RUNNER_TEMP/KUTANA-ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          echo "### KUTANA cloud signing" >> "$GITHUB_STEP_SUMMARY"
+          echo "Apple accepted the export/upload operation. Check App Store Connect for build processing." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary Apple authentication materials
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${ASC_KEY_PATH:-}" ]]; then rm -f "$ASC_KEY_PATH"; fi
