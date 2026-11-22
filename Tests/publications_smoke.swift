@@ -125,6 +125,78 @@ final class PublicationProtocol: URLProtocol {
             assertionFailure("A short report should be rejected")
         } catch BackendError.invalidResponse { /* expected */ }
 
-        print("KUTANA publication, recruiter applications, withdrawal, seller chat and report HTTP contract: OK")
+
+        let jpg = Data([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02])
+        let photoPath = "\(owner.uuidString.lowercased())/\(id.uuidString.lowercased())/\(id.uuidString.lowercased()).jpg"
+        let imageURL = config.publicListingImageURL(path: photoPath)
+        assert(imageURL?.path.contains("/storage/v1/object/public/kutana-listing-images/") == true)
+        assert(config.publicListingImageURL(path: "../malicious.jpg") == nil)
+
+        PublicationProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/listing_images")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            return (200, Data("""
+            [{"id":"\(id.uuidString.lowercased())","listing_id":"\(id.uuidString.lowercased())",
+              "storage_path":"\(photoPath)","sort_order":0}]
+            """.utf8))
+        }
+        let photos = try await api.listingImages(listingID: id, accessToken: "test-token")
+        assert(photos.count == 1 && photos[0].storage_path == photoPath)
+
+        PublicationProtocol.handler = { request in
+            if request.url?.path.hasPrefix("/storage/v1/object/kutana-listing-images/") == true {
+                assert(request.httpMethod == "POST")
+                assert(request.value(forHTTPHeaderField: "Content-Type") == "image/jpeg")
+                return (200, Data("{}".utf8))
+            }
+            assert(request.url?.path == "/rest/v1/rpc/attach_listing_image")
+            let body = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
+            assert(body["p_listing"] == id.uuidString.lowercased())
+            assert(body["p_path"]?.hasSuffix(".jpg") == true)
+            return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
+        }
+        let uploadedPhoto = try await api.uploadListingImage(jpg, listingID: id,
+                                                              ownerID: owner, accessToken: "test-token")
+        assert(uploadedPhoto == id)
+
+        let pdf = Data("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF".utf8)
+        let cvPath = "\(owner.uuidString.lowercased())/\(id.uuidString.lowercased()).pdf"
+        PublicationProtocol.handler = { request in
+            if request.url?.path.hasPrefix("/storage/v1/object/kutana-cvs/") == true {
+                assert(request.value(forHTTPHeaderField: "Content-Type") == "application/pdf")
+                return (200, Data("{}".utf8))
+            }
+            assert(request.url?.path == "/rest/v1/rpc/attach_application_cv")
+            let body = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
+            assert(body["p_application"] == id.uuidString.lowercased())
+            assert(body["p_file_name"] == "test.pdf")
+            return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
+        }
+        let cvAttached = try await api.uploadApplicationCV(pdf, filename: "test.pdf",
+            applicationID: id, ownerID: owner, accessToken: "test-token")
+        assert(cvAttached == id)
+
+        PublicationProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/application_cvs")
+            return (200, Data("""
+            [{"application_id":"\(id.uuidString.lowercased())",
+              "storage_path":"\(cvPath)","file_name":"test.pdf"}]
+            """.utf8))
+        }
+        let cv = try await api.applicationCV(applicationID: id, accessToken: "test-token")
+        assert(cv?.storage_path == cvPath)
+
+        PublicationProtocol.handler = { request in
+            assert(request.url?.path == "/storage/v1/object/authenticated/kutana-cvs/\(cvPath)")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            return (200, pdf)
+        }
+        if let cv {
+            let local = try await api.downloadApplicationCV(cv, accessToken: "test-token")
+            assert(FileManager.default.fileExists(atPath: local.path))
+            try FileManager.default.removeItem(at: local)
+        }
+
+        print("KUTANA publication, recruiter applications, withdrawal, seller chat and report and private media HTTP contract: OK")
     }
 }
