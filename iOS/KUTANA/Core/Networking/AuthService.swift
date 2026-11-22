@@ -71,6 +71,23 @@ actor KutanaAuthService {
         return try validatedSession(response)
     }
 
+    /// Supabase GoTrue exchanges Apple's native identity token for a KUTANA session.
+    func signInWithApple(idToken: String, nonce: String) async throws -> AuthSession {
+        guard !idToken.isEmpty, !nonce.isEmpty else { throw KutanaSocialAuthError.missingAppleToken }
+        let response: AuthResponse = try await send(path: "token?grant_type=id_token", body: [
+            "provider": "apple", "id_token": idToken, "nonce": nonce
+        ])
+        return try validatedSession(response)
+    }
+
+    /// Exchange a short-lived, PKCE-protected Google OAuth authorization code.
+    func exchangeGoogleCode(_ code: String, verifier: String) async throws -> AuthSession {
+        let response: AuthResponse = try await send(path: "token?grant_type=pkce", body: [
+            "auth_code": code, "code_verifier": verifier
+        ])
+        return try validatedSession(response)
+    }
+
     func refresh(_ refreshToken: String) async throws -> AuthSession {
         let response: AuthResponse = try await send(path: "token?grant_type=refresh_token", body: [
             "refresh_token": refreshToken
@@ -115,8 +132,23 @@ actor KutanaAuthService {
         guard let response = response as? HTTPURLResponse else { throw AuthFailure.invalidSession }
         guard (200...299).contains(response.statusCode) else {
             if response.statusCode == 400 || response.statusCode == 401 {
-                if String(data: data, encoding: .utf8)?.localizedCaseInsensitiveContains("email not confirmed") == true {
+                let message = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                let detail = (message?["msg"] as? String)
+                    ?? (message?["error_description"] as? String)
+                    ?? (message?["message"] as? String)
+                    ?? ""
+                if detail.localizedCaseInsensitiveContains("email not confirmed") {
                     throw AuthFailure.confirmationRequired
+                }
+                if path.contains("grant_type=id_token") || path.contains("grant_type=pkce") {
+                    if detail.localizedCaseInsensitiveContains("provider") &&
+                        (detail.localizedCaseInsensitiveContains("disabled") ||
+                         detail.localizedCaseInsensitiveContains("not enabled")) {
+                        throw KutanaSocialAuthError.providerNotReady
+                    }
+                    throw AuthFailure.remoteMessage(detail.isEmpty
+                        ? "La connexion avec ce fournisseur n'est pas disponible. Vérifiez sa configuration."
+                        : detail)
                 }
                 throw AuthFailure.invalidCredentials
             }
