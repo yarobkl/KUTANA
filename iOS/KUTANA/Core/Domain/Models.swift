@@ -39,6 +39,14 @@ struct ListingRecord: Identifiable, Codable, Sendable {
     let created_at: Date
 }
 
+
+struct ListingImageRecord: Identifiable, Codable, Sendable {
+    let id: UUID
+    let listing_id: UUID
+    let storage_path: String
+    let sort_order: Int
+}
+
 struct ApplicationRecord: Identifiable, Codable, Sendable {
     let id: UUID
     let job_id: UUID
