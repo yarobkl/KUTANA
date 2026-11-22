@@ -360,3 +360,68 @@ struct MyPublicationsView: View {
         }
     }
 }
+
+
+/// User-generated content moderation entry point, scoped to a published job or listing.
+struct ReportContentSheet: View {
+    let kind: String
+    let contentID: UUID
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var reason = ""
+    @State private var sending = false
+    @State private var errorMessage: String?
+    @State private var sent = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Pourquoi signalez-vous ce contenu ?") {
+                    TextField("Décrivez le problème (10 caractères minimum)", text: $reason, axis: .vertical)
+                        .lineLimit(4...8)
+                }
+                Section {
+                    if let errorMessage {
+                        Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                    }
+                    if sent {
+                        Label("Signalement transmis", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Button(sending ? "Envoi en cours…" : "Envoyer le signalement") {
+                            Task { await send() }
+                        }
+                        .disabled(sending || !(10...2000).contains(reason.trimmingCharacters(in: .whitespacesAndNewlines).count))
+                    }
+                } footer: {
+                    Text("Les signalements sont examinés par l'équipe de modération. Aucun contenu n'est automatiquement retiré.")
+                }
+            }
+            .navigationTitle("Signaler")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @MainActor private func send() async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Reconnectez-vous avant de signaler."
+            return
+        }
+        sending = true
+        errorMessage = nil
+        defer { sending = false }
+        do {
+            _ = try await KutanaAPI(configuration: configuration)
+                .reportContent(kind: kind, id: contentID, reason: reason, accessToken: token)
+            sent = true
+        } catch {
+            errorMessage = "Impossible d'enregistrer le signalement."
+        }
+    }
+}
