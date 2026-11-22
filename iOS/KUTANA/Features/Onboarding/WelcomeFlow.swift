@@ -2,41 +2,40 @@ import SwiftUI
 import AuthenticationServices
 
 // KUTANA only. This flow is deliberately independent of all other Yaro products.
-private enum WelcomePage: Hashable { case splash, introduction, login, registration, reset }
+private enum WelcomePage: Hashable { case introduction, login, registration, reset }
 
 struct WelcomeFlow: View {
     @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("kutana.hasSeenIntroduction") private var hasSeenIntroduction = false
-    @State private var route: WelcomePage = .splash
-    @State private var didCompleteLaunch = false
+    @State private var route: WelcomePage = .login
+    @State private var splashFinished = false
     @State private var showingPreview = false
 
     var body: some View {
         NavigationStack {
             Group {
-              if identity.authenticated {
-                RootView()
-              } else {
-                switch route {
-                case .splash:
-                    KutanaSplashView()
-                case .introduction:
-                    KutanaIntroductionView(
-                        skip: { hasSeenIntroduction = true; route = .login },
-                        continueAction: { hasSeenIntroduction = true; route = .login }
-                    )
-                case .login:
-                    KutanaLoginView(
-                        createAccount: { route = .registration },
-                        resetPassword: { route = .reset },
-                        preview: { showingPreview = true }
-                    )
-                case .registration:
-                    KutanaRegistrationView(back: { route = .login })
-                case .reset:
-                    KutanaResetPasswordView(back: { route = .login })
+                if identity.authenticated {
+                    RootView()
+                } else {
+                    switch route {
+                    case .login:
+                        KutanaLoginView(
+                            createAccount: { route = .registration },
+                            resetPassword: { route = .reset },
+                            preview: { showingPreview = true }
+                        )
+                    case .introduction:
+                        KutanaIntroductionView(
+                            skip: { hasSeenIntroduction = true; route = .login },
+                            continueAction: { hasSeenIntroduction = true; route = .login }
+                        )
+                    case .registration:
+                        KutanaRegistrationView(back: { route = .login })
+                    case .reset:
+                        KutanaResetPasswordView(back: { route = .login })
+                    }
                 }
-              }
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingPreview) {
@@ -49,15 +48,25 @@ struct WelcomeFlow: View {
             }
         }
         .tint(KutanaTheme.blue)
-        // The approved splash is now part of the actual launch path, not just an unused view.
-        .task {
-            guard !didCompleteLaunch else { return }
-            didCompleteLaunch = true
-            await identity.restore()
-            try? await Task.sleep(for: .milliseconds(950))
-            guard !Task.isCancelled else { return }
-            route = hasSeenIntroduction ? .login : .introduction
+        .overlay {
+            if !splashFinished {
+                KutanaSplashView {
+                    if !identity.authenticated {
+                        route = hasSeenIntroduction ? .login : .introduction
+                    }
+                    if reduceMotion {
+                        splashFinished = true
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            splashFinished = true
+                        }
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(1)
+            }
         }
+        .task { await identity.restore() }
     }
 }
 
@@ -66,43 +75,116 @@ private struct KutanaLogo: View {
     var body: some View {
         VStack(spacing: large ? 10 : 0) {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: large ? 23 : 12)
-                        .fill(LinearGradient(colors: [Color(red: 0.06, green: 0.39, blue: 0.99), Color(red: 0.02, green: 0.22, blue: 0.79)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    Text("K").font(.system(size: large ? 76 : 32, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+                Image("kutana_mark")
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: large ? 23 : 12, style: .continuous))
+                    .frame(width: large ? 110 : 48, height: large ? 110 : 48)
+                if !large {
+                    Text("KUTANA")
+                        .font(.system(size: 25, weight: .heavy))
+                        .foregroundStyle(KutanaTheme.ink)
                 }
-                .frame(width: large ? 110 : 48, height: large ? 110 : 48)
-                if !large { Text("KUTANA").font(.system(size: 25, weight: .heavy)).foregroundStyle(KutanaTheme.ink) }
             }
-            if large { Text("KUTANA").font(.system(size: 44, weight: .heavy)).foregroundStyle(KutanaTheme.ink) }
+            if large {
+                Text("KUTANA").font(.system(size: 44, weight: .heavy))
+                    .foregroundStyle(KutanaTheme.ink)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("KUTANA")
     }
 }
 
-struct KutanaSplashView: View {
+private struct KutanaSplashView: View {
+    let onFinished: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var logoOffset: CGFloat = -650
+    @State private var logoScale: CGFloat = 0.82
+    @State private var textOpacity = 0.0
+    @State private var textOffset: CGFloat = 14
+
     var body: some View {
         GeometryReader { proxy in
+            let side = min(110.0, max(88.0, proxy.size.width * 0.28))
             ZStack {
                 Color.white.ignoresSafeArea()
-                VStack(spacing: 8) {
-                    KutanaLogo(large: true)
-                    Text("Emploi · Annonces · Congo")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.secondary)
+                BottomWaveShape()
+                    .fill(LinearGradient(
+                        colors: [KutanaTheme.blue, Color(red: 0.02, green: 0.25, blue: 0.85)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(height: min(240, max(155, proxy.size.height * 0.28)))
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .ignoresSafeArea(edges: .bottom)
+
+                VStack(spacing: 19) {
+                    Image("kutana_mark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: side, height: side)
+                        .clipShape(RoundedRectangle(cornerRadius: side * 0.23, style: .continuous))
+                        .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
+                        .offset(y: logoOffset)
+                        .scaleEffect(logoScale)
+
+                    VStack(spacing: 8) {
+                        Text("KUTANA")
+                            .font(.system(size: 32, weight: .black))
+                            .tracking(2)
+                            .foregroundStyle(KutanaTheme.ink)
+                        Text("Emploi · Annonces · Congo")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(1)
+                    }
+                    .opacity(textOpacity)
+                    .offset(y: textOffset)
                 }
-                Path { path in
-                    path.move(to: CGPoint(x: 0, y: proxy.size.height))
-                    path.addCurve(to: CGPoint(x: proxy.size.width, y: proxy.size.height * 0.76), control1: CGPoint(x: proxy.size.width * 0.43, y: proxy.size.height * 0.92), control2: CGPoint(x: proxy.size.width * 0.72, y: proxy.size.height * 0.76))
-                    path.addLine(to: CGPoint(x: proxy.size.width, y: proxy.size.height))
-                    path.closeSubpath()
-                }
-                .fill(KutanaTheme.blue)
-                .ignoresSafeArea(edges: .bottom)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 18)
+                .offset(y: -min(35, proxy.size.height * 0.05))
             }
         }
+        .task {
+            if reduceMotion {
+                logoOffset = 0
+                logoScale = 1
+                textOpacity = 1
+                textOffset = 0
+                try? await Task.sleep(for: .milliseconds(350))
+            } else {
+                withAnimation(.spring(response: 0.68, dampingFraction: 0.63)) {
+                    logoOffset = 0
+                    logoScale = 1
+                }
+                try? await Task.sleep(for: .milliseconds(420))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.45)) {
+                    textOpacity = 1
+                    textOffset = 0
+                }
+                try? await Task.sleep(for: .milliseconds(1430))
+            }
+            guard !Task.isCancelled else { return }
+            onFinished()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("KUTANA. Emploi, annonces, Congo.")
+    }
+}
+
+private struct BottomWaveShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: rect.height))
+        path.addCurve(to: CGPoint(x: rect.width, y: rect.height * 0.15),
+                      control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85),
+                      control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        path.closeSubpath()
+        return path
     }
 }
 
