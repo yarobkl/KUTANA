@@ -1,0 +1,484 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1CB4D3B5F0F2FAA0D0EA5DB2 /* ApplicationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FC1DB8192BE88056E947BA /* ApplicationsView.swift */; };
+		2B98FB6C2D4ECC15FC126FF5 /* Backend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8563BD28DCF92B8AD47CF9FA /* Backend.swift */; };
+		43725B17FB68E923ECEB173A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B9995BF1C8F46FC46B2DC9 /* Models.swift */; };
+		5733012ADCB2B3A0DF88FD48 /* Drafts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 481D57B16D0F5F0B53E70B9B /* Drafts.swift */; };
+		69B2802AB9B7B3D4145D283F /* MarketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9887A5F2382C8806708A17E /* MarketView.swift */; };
+		6DABBEAEFD3EEA5F22A3A6FB /* WelcomeFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340AE122734F25EB06F59646 /* WelcomeFlow.swift */; };
+		6EEDC9BBB4FE325D229FE07C /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C408A52F6D8ADD48DD1F04EA /* SessionStore.swift */; };
+		6FE85316E7D8BDA9244846B7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FDB76E5271552A4786253CA4 /* Assets.xcassets */; };
+		8BC680BA659FC99518A4569D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113113605EE058DB4EE45861 /* RootView.swift */; };
+		97CD4FF6222E19BC7A5197BA /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E37AFAE53C9B6EB9BD04DE6 /* MessagesView.swift */; };
+		9FD9481EB1F14BCF28584373 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */; };
+		A34AD3F009396E7F657A1443 /* SecureTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43564785CB0CB64290B91D3 /* SecureTokenStore.swift */; };
+		AFBA3686840EF5518E48E365 /* AccessTokenMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDB96D12B0B185273DB0C29 /* AccessTokenMetadata.swift */; };
+		D1D5454039FD6692A55ED77D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73DF1095253110F06ACB4C /* Theme.swift */; };
+		D50075DB7FFDB4ABFF4C8C87 /* KUTANAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834B176ECF2BD064214DA7E6 /* KUTANAApp.swift */; };
+		E7102FB92AC99245675DEBE2 /* JobsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B894E7348A0124ECC126848B /* JobsView.swift */; };
+		EC176B6AC7A752F5F69D6CB3 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F97D6759892362F0B87894A /* AuthService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		0E37AFAE53C9B6EB9BD04DE6 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		113113605EE058DB4EE45861 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		340AE122734F25EB06F59646 /* WelcomeFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeFlow.swift; sourceTree = "<group>"; };
+		481D57B16D0F5F0B53E70B9B /* Drafts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Drafts.swift; sourceTree = "<group>"; };
+		4C30ED7CD673B7471C1F79CE /* KUTANA.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KUTANA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6F97D6759892362F0B87894A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		834B176ECF2BD064214DA7E6 /* KUTANAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KUTANAApp.swift; sourceTree = "<group>"; };
+		8563BD28DCF92B8AD47CF9FA /* Backend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend.swift; sourceTree = "<group>"; };
+		8CDB96D12B0B185273DB0C29 /* AccessTokenMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessTokenMetadata.swift; sourceTree = "<group>"; };
+		9C73DF1095253110F06ACB4C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A9887A5F2382C8806708A17E /* MarketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketView.swift; sourceTree = "<group>"; };
+		B43564785CB0CB64290B91D3 /* SecureTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureTokenStore.swift; sourceTree = "<group>"; };
+		B894E7348A0124ECC126848B /* JobsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsView.swift; sourceTree = "<group>"; };
+		C3B9995BF1C8F46FC46B2DC9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C408A52F6D8ADD48DD1F04EA /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		E6FC1DB8192BE88056E947BA /* ApplicationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationsView.swift; sourceTree = "<group>"; };
+		FDB76E5271552A4786253CA4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		095F568677E3747AAF629AE2 = {
+			isa = PBXGroup;
+			children = (
+				9CC03E50475F651116225612 /* KUTANA */,
+				2D44F85E6B6C20524A168B1F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2D44F85E6B6C20524A168B1F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4C30ED7CD673B7471C1F79CE /* KUTANA.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		304D69BFEF0E10BB67D7C3AD /* Jobs */ = {
+			isa = PBXGroup;
+			children = (
+				B894E7348A0124ECC126848B /* JobsView.swift */,
+			);
+			path = Jobs;
+			sourceTree = "<group>";
+		};
+		34E5CC64C1823AE1722629BA /* Messages */ = {
+			isa = PBXGroup;
+			children = (
+				0E37AFAE53C9B6EB9BD04DE6 /* MessagesView.swift */,
+			);
+			path = Messages;
+			sourceTree = "<group>";
+		};
+		6C38055092379B8C33EE13E0 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				B43564785CB0CB64290B91D3 /* SecureTokenStore.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		8DB39583A9B78E910C383407 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				340AE122734F25EB06F59646 /* WelcomeFlow.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		9CC03E50475F651116225612 /* KUTANA */ = {
+			isa = PBXGroup;
+			children = (
+				A5AAF0FD08916EA452FEBC5D /* App */,
+				C6030FD9FD7B6A16BA5A09C9 /* Core */,
+				CB4FC2793EAB108F7D65213B /* Features */,
+				A570F350BA0FDD74E3676032 /* Resources */,
+			);
+			name = KUTANA;
+			path = iOS/KUTANA;
+			sourceTree = "<group>";
+		};
+		A493D56FBF44FD52064217CB /* Applications */ = {
+			isa = PBXGroup;
+			children = (
+				E6FC1DB8192BE88056E947BA /* ApplicationsView.swift */,
+			);
+			path = Applications;
+			sourceTree = "<group>";
+		};
+		A570F350BA0FDD74E3676032 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FDB76E5271552A4786253CA4 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A5AAF0FD08916EA452FEBC5D /* App */ = {
+			isa = PBXGroup;
+			children = (
+				834B176ECF2BD064214DA7E6 /* KUTANAApp.swift */,
+				113113605EE058DB4EE45861 /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C382037B74FBFC3A6FF401F4 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		C6030FD9FD7B6A16BA5A09C9 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				9C73DF1095253110F06ACB4C /* Theme.swift */,
+				F3064CD8B86C157D96FFA08A /* Domain */,
+				CAE144A8FDCD2CBC8FD99B47 /* Networking */,
+				6C38055092379B8C33EE13E0 /* Storage */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		CAE144A8FDCD2CBC8FD99B47 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				8CDB96D12B0B185273DB0C29 /* AccessTokenMetadata.swift */,
+				6F97D6759892362F0B87894A /* AuthService.swift */,
+				8563BD28DCF92B8AD47CF9FA /* Backend.swift */,
+				C408A52F6D8ADD48DD1F04EA /* SessionStore.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		CB4FC2793EAB108F7D65213B /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				A493D56FBF44FD52064217CB /* Applications */,
+				304D69BFEF0E10BB67D7C3AD /* Jobs */,
+				EACD4014339D9CF5D2DFD762 /* Market */,
+				34E5CC64C1823AE1722629BA /* Messages */,
+				8DB39583A9B78E910C383407 /* Onboarding */,
+				C382037B74FBFC3A6FF401F4 /* Profile */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		EACD4014339D9CF5D2DFD762 /* Market */ = {
+			isa = PBXGroup;
+			children = (
+				A9887A5F2382C8806708A17E /* MarketView.swift */,
+			);
+			path = Market;
+			sourceTree = "<group>";
+		};
+		F3064CD8B86C157D96FFA08A /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				481D57B16D0F5F0B53E70B9B /* Drafts.swift */,
+				C3B9995BF1C8F46FC46B2DC9 /* Models.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3C0809109ABD2C4420E0F29F /* KUTANA */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7440CBA149D5387A76D0F451 /* Build configuration list for PBXNativeTarget "KUTANA" */;
+			buildPhases = (
+				E08B0654D59E9E61BE033D15 /* Sources */,
+				D41C5195547912B49461D0F2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KUTANA;
+			packageProductDependencies = (
+			);
+			productName = KUTANA;
+			productReference = 4C30ED7CD673B7471C1F79CE /* KUTANA.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E454D4C8119A97EF64D231B3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					3C0809109ABD2C4420E0F29F = {
+						DevelopmentTeam = UK4UQCQ57G;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = E46C4A06218BD3108990DECC /* Build configuration list for PBXProject "KUTANA" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 095F568677E3747AAF629AE2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 2D44F85E6B6C20524A168B1F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3C0809109ABD2C4420E0F29F /* KUTANA */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D41C5195547912B49461D0F2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6FE85316E7D8BDA9244846B7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E08B0654D59E9E61BE033D15 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AFBA3686840EF5518E48E365 /* AccessTokenMetadata.swift in Sources */,
+				1CB4D3B5F0F2FAA0D0EA5DB2 /* ApplicationsView.swift in Sources */,
+				EC176B6AC7A752F5F69D6CB3 /* AuthService.swift in Sources */,
+				2B98FB6C2D4ECC15FC126FF5 /* Backend.swift in Sources */,
+				5733012ADCB2B3A0DF88FD48 /* Drafts.swift in Sources */,
+				E7102FB92AC99245675DEBE2 /* JobsView.swift in Sources */,
+				D50075DB7FFDB4ABFF4C8C87 /* KUTANAApp.swift in Sources */,
+				69B2802AB9B7B3D4145D283F /* MarketView.swift in Sources */,
+				97CD4FF6222E19BC7A5197BA /* MessagesView.swift in Sources */,
+				43725B17FB68E923ECEB173A /* Models.swift in Sources */,
+				9FD9481EB1F14BCF28584373 /* ProfileView.swift in Sources */,
+				8BC680BA659FC99518A4569D /* RootView.swift in Sources */,
+				A34AD3F009396E7F657A1443 /* SecureTokenStore.swift in Sources */,
+				6EEDC9BBB4FE325D229FE07C /* SessionStore.swift in Sources */,
+				D1D5454039FD6692A55ED77D /* Theme.swift in Sources */,
+				6DABBEAEFD3EEA5F22A3A6FB /* WelcomeFlow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		268A09B441A569994A671D21 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_KUTANA_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_x-MshIA-X2hZ1fJJdjvtFw_dt-05xAI";
+				INFOPLIST_KEY_KUTANA_SUPABASE_URL = "https://xwhjzftrzikgqweowtus.supabase.co";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		3500F028FC64F45F924F1857 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = UK4UQCQ57G;
+				INFOPLIST_KEY_CFBundleDisplayName = KUTANA;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fr.yaroconsulting.kutana;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		461FEC8D2C10712FE45672C6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_KUTANA_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_x-MshIA-X2hZ1fJJdjvtFw_dt-05xAI";
+				INFOPLIST_KEY_KUTANA_SUPABASE_URL = "https://xwhjzftrzikgqweowtus.supabase.co";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		69CD92CB68BC2DF2277FC758 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = UK4UQCQ57G;
+				INFOPLIST_KEY_CFBundleDisplayName = KUTANA;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fr.yaroconsulting.kutana;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7440CBA149D5387A76D0F451 /* Build configuration list for PBXNativeTarget "KUTANA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3500F028FC64F45F924F1857 /* Debug */,
+				69CD92CB68BC2DF2277FC758 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E46C4A06218BD3108990DECC /* Build configuration list for PBXProject "KUTANA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				268A09B441A569994A671D21 /* Debug */,
+				461FEC8D2C10712FE45672C6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E454D4C8119A97EF64D231B3 /* Project object */;
+}
