@@ -91,6 +91,7 @@ struct MarketView: View {
                 }
             }
             .searchable(text: $query, prompt: "Article, ville, description…")
+            .sensoryFeedback(.selection, trigger: category)
             .navigationTitle("Annonces")
             .refreshable { await load() }
             .task { await load() }
