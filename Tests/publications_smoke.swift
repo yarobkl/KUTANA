@@ -57,13 +57,15 @@ final class PublicationProtocol: URLProtocol {
             assert(payload["p_job"] == id.uuidString.lowercased())
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
-        assert(try await api.publishJob(id: id, accessToken: "test-token") == id)
+        let publishedJob = try await api.publishJob(id: id, accessToken: "test-token")
+        assert(publishedJob == id)
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/publish_listing")
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
-        assert(try await api.publishListing(id: id, accessToken: "test-token") == id)
+        let publishedListing = try await api.publishListing(id: id, accessToken: "test-token")
+        assert(publishedListing == id)
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/withdraw_publication")
@@ -72,13 +74,15 @@ final class PublicationProtocol: URLProtocol {
             assert(payload["p_id"] == id.uuidString.lowercased())
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
-        assert(try await api.withdrawPublication(kind: "listing", id: id, accessToken: "test-token") == id)
+        let withdrawn = try await api.withdrawPublication(kind: "listing", id: id, accessToken: "test-token")
+        assert(withdrawn == id)
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/start_listing_conversation")
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
-        assert(try await api.startListingConversation(listingID: id, accessToken: "test-token") == id)
+        let conversationID = try await api.startListingConversation(listingID: id, accessToken: "test-token")
+        assert(conversationID == id)
 
         PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/report_content")
@@ -87,7 +91,8 @@ final class PublicationProtocol: URLProtocol {
             assert(payload["p_reason"] == "Contenu suspect")
             return (200, Data("\"\(id.uuidString.lowercased())\"".utf8))
         }
-        assert(try await api.reportContent(kind: "job", id: id, reason: "  Contenu suspect  ", accessToken: "test-token") == id)
+        let reportID = try await api.reportContent(kind: "job", id: id, reason: "  Contenu suspect  ", accessToken: "test-token")
+        assert(reportID == id)
         do {
             _ = try await api.reportContent(kind: "job", id: id, reason: "court", accessToken: "test-token")
             assertionFailure("A short report should be rejected")
