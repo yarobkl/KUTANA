@@ -25,4 +25,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana
         INFOPLIST_KEY_CFBundleDisplayName: KUTANA
-        DEVELOPMENT_TEAM: ''
+        DEVELOPMENT_TEAM: UK4UQCQ57G
