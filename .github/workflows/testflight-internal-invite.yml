@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/testflight-internal-invite.yml'
+  workflow_run:
+    workflows: ["KUTANA TestFlight (Apple cloud signing)"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,6 +20,7 @@ concurrency:
 
 jobs:
   enable-internal-test:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 14
     env:
