@@ -1,4 +1,6 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import QuickLook
 
 struct ApplicationsView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
@@ -7,6 +9,11 @@ struct ApplicationsView: View {
     @State private var errorMessage: String?
     @State private var openingConversation = false
     @State private var chatTarget: ChatTarget?
+    @State private var cvTarget: UUID?
+    @State private var showImporter = false
+    @State private var uploadingCV = false
+    @State private var cvPreview: URL?
+    @State private var notice: String?
 
     private struct ChatTarget: Identifiable {
         let id: UUID
@@ -17,6 +24,7 @@ struct ApplicationsView: View {
             List {
                 if loading { ProgressView("Chargement des candidatures…") }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+                if let notice { Text(notice).font(.footnote).foregroundStyle(.green) }
                 ForEach(applications) { item in
                     VStack(alignment: .leading, spacing: 7) {
                         Text(item.jobs?.title ?? "Offre indisponible").font(.headline)
@@ -29,6 +37,18 @@ struct ApplicationsView: View {
                             Label("Échanger avec le recruteur", systemImage: "bubble.left")
                                 .font(.subheadline)
                         }.disabled(openingConversation)
+                        HStack(spacing: 18) {
+                            Button(uploadingCV ? "Ajout du CV…" : "Joindre ou remplacer un CV") {
+                                cvTarget = item.id
+                                showImporter = true
+                            }
+                            .disabled(uploadingCV)
+                            .font(.subheadline)
+                            Button("Voir le CV") {
+                                Task { await openCV(for: item.id) }
+                            }
+                            .font(.subheadline)
+                        }
                     }.padding(.vertical, 8)
                 }
                 if applications.isEmpty && !loading {
@@ -49,6 +69,27 @@ struct ApplicationsView: View {
                         }
                 }
             }
+            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.pdf]) { result in
+                guard let cvTarget else { return }
+                switch result {
+                case .success(let url):
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    guard let data = try? Data(contentsOf: url) else {
+                        errorMessage = "Impossible de lire le fichier PDF."
+                        return
+                    }
+                    Task { await uploadCV(data, filename: url.lastPathComponent, applicationID: cvTarget) }
+                case .failure:
+                    errorMessage = "Sélection du fichier annulée ou impossible."
+                }
+            }
+            .quickLookPreview($cvPreview)
+            .onChange(of: cvPreview) { oldURL, newURL in
+                if newURL == nil, let oldURL {
+                    try? FileManager.default.removeItem(at: oldURL)
+                }
+            }
         }
     }
 
@@ -67,6 +108,47 @@ struct ApplicationsView: View {
             chatTarget = ChatTarget(id: id)
         } catch {
             errorMessage = "Impossible d’ouvrir cette conversation."
+        }
+    }
+
+
+    @MainActor private func uploadCV(_ pdf: Data, filename: String, applicationID: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let owner = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous avant d'ajouter votre CV."
+            return
+        }
+        uploadingCV = true
+        errorMessage = nil
+        notice = nil
+        defer { uploadingCV = false }
+        do {
+            _ = try await KutanaAPI(configuration: configuration)
+                .uploadApplicationCV(pdf, filename: filename, applicationID: applicationID,
+                                     ownerID: owner, accessToken: token)
+            notice = "Votre CV PDF a été enregistré et joint à la candidature."
+        } catch {
+            errorMessage = "CV refusé. Vérifiez qu'il s'agit d'un PDF de moins de 5 Mo."
+        }
+    }
+
+    @MainActor private func openCV(for applicationID: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Connectez-vous pour ouvrir votre CV."
+            return
+        }
+        errorMessage = nil
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            guard let cv = try await api.applicationCV(applicationID: applicationID, accessToken: token) else {
+                errorMessage = "Aucun CV joint à cette candidature."
+                return
+            }
+            cvPreview = try await api.downloadApplicationCV(cv, accessToken: token)
+        } catch {
+            errorMessage = "Le CV ne peut pas être ouvert."
         }
     }
 
@@ -94,6 +176,7 @@ struct ReceivedApplicationsView: View {
     @State private var pendingID: UUID?
     @State private var pendingStatus: ApplicationState?
     @State private var showConfirmation = false
+    @State private var cvPreview: URL?
 
     private struct ChatTarget: Identifiable {
         let id: UUID
@@ -137,6 +220,13 @@ struct ReceivedApplicationsView: View {
                                     .font(.subheadline)
                             }
                             .disabled(busy)
+                            Button {
+                                Task { await openCV(for: item.id) }
+                            } label: {
+                                Label("CV PDF", systemImage: "doc.text")
+                                    .font(.subheadline)
+                            }
+                            .disabled(busy)
                         }
                     }
                     .padding(.vertical, 8)
@@ -169,6 +259,32 @@ struct ReceivedApplicationsView: View {
                         }
                 }
             }
+            .quickLookPreview($cvPreview)
+            .onChange(of: cvPreview) { oldURL, newURL in
+                if newURL == nil, let oldURL {
+                    try? FileManager.default.removeItem(at: oldURL)
+                }
+            }
+        }
+    }
+
+
+    @MainActor private func openCV(for applicationID: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Connectez-vous pour consulter le CV."
+            return
+        }
+        errorMessage = nil
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            guard let cv = try await api.applicationCV(applicationID: applicationID, accessToken: token) else {
+                errorMessage = "Le candidat n'a pas encore joint de CV."
+                return
+            }
+            cvPreview = try await api.downloadApplicationCV(cv, accessToken: token)
+        } catch {
+            errorMessage = "Accès au CV refusé ou téléchargement impossible."
         }
     }
 
