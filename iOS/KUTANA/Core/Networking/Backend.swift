@@ -75,6 +75,26 @@ actor KutanaAPI {
         ])
     }
 
+
+    /// RLS also enforces ownership; the explicit predicate keeps the account list scoped.
+    func myJobs(ownerID: UUID, accessToken: String) async throws -> [JobRecord] {
+        try await get("jobs", query: [
+            URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),
+            URLQueryItem(name: "author_id", value: "eq.\(ownerID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
+    func myListings(ownerID: UUID, accessToken: String) async throws -> [ListingRecord] {
+        try await get("listings", query: [
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at"),
+            URLQueryItem(name: "seller_id", value: "eq.\(ownerID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
     func myApplications(accessToken: String) async throws -> [ApplicationWithJob] {
         try await get("applications", query: [
             URLQueryItem(name: "select", value: "id,job_id,status,created_at,jobs(title,company)"),
@@ -136,6 +156,38 @@ actor KutanaAPI {
 
     func createListingDraft(_ input: ListingDraftInput, accessToken: String) async throws -> UUID {
         try await rpc(name: "create_listing_draft", body: input, accessToken: accessToken)
+    }
+
+
+    /// Author-only transitions; publishing requires a server-verified email.
+    func publishJob(id: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "publish_job", body: ["p_job": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func publishListing(id: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "publish_listing", body: ["p_listing": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func withdrawPublication(kind: String, id: UUID, accessToken: String) async throws -> UUID {
+        guard kind == "job" || kind == "listing" else { throw BackendError.invalidResponse }
+        return try await rpc(name: "withdraw_publication", body: [
+            "p_kind": kind, "p_id": id.uuidString.lowercased()
+        ], accessToken: accessToken)
+    }
+
+    func startListingConversation(listingID: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "start_listing_conversation",
+                      body: ["p_listing": listingID.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func reportContent(kind: String, id: UUID, reason: String, accessToken: String) async throws -> UUID {
+        let cleaned = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ["job","listing"].contains(kind), (10...2000).contains(cleaned.count) else {
+            throw BackendError.invalidResponse
+        }
+        return try await rpc(name: "report_content", body: [
+            "p_kind": kind, "p_id": id.uuidString.lowercased(), "p_reason": cleaned
+        ], accessToken: accessToken)
     }
 
     private func rpc<T: Encodable>(name: String, body: T, accessToken: String) async throws -> UUID {
