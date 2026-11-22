@@ -29,6 +29,7 @@ targets:
             CFBundleURLSchemes:
               - kutana
         ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
