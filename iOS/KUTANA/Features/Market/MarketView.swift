@@ -6,6 +6,7 @@ struct MarketView: View {
     @State private var category = "Toutes"
     @State private var query = ""
     @State private var loading = false
+    @State private var hasLoaded = false
     @State private var errorMessage: String?
     private let categories = ["Toutes", "Téléphones", "Informatique", "Électroménager", "Meubles", "Véhicules", "Mode", "Maison", "Matériel professionnel", "Autres"]
 
@@ -28,30 +29,50 @@ struct MarketView: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                 }
-                Section("Catégories") {
-                    Picker("Catégorie", selection: $category) {
-                        ForEach(categories, id: \.self) { Text($0) }
-                    }.pickerStyle(.menu)
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(categories, id: \.self) { option in
+                                Button {
+                                    withAnimation(KutanaMotion.quick) { category = option }
+                                } label: {
+                                    Text(option)
+                                        .font(.subheadline.weight(category == option ? .semibold : .medium))
+                                        .foregroundStyle(category == option ? .white : .primary)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            category == option ? KutanaTheme.blue : Color(.secondarySystemGroupedBackground),
+                                            in: Capsule()
+                                        )
+                                }
+                                .buttonStyle(KutanaPressStyle())
+                                .accessibilityAddTraits(category == option ? .isSelected : [])
+                            }
+                        }
+                        .padding(.vertical, 3)
+                    }
+                    .contentMargins(.horizontal, 2)
+                } header: {
+                    Text("Explorer par catégorie")
                 }
                 Section("Annonces récentes") {
-                    if loading { ProgressView("Chargement des annonces…") }
+                    if loading && !hasLoaded {
+                        ForEach(0..<4, id: \.self) { _ in
+                            KutanaLoadingRow(withThumbnail: true)
+                        }
+                    }
                     if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+                    if !loading || hasLoaded {
                     ForEach(visible) { item in
                         NavigationLink {
                             ListingDetailView(item: item)
                         } label: {
                             HStack(spacing: 14) {
-                                if let path = item.listing_images?.first?.storage_path,
-                                   let url = identity.configuration?.publicListingImageURL(path: path) {
-                                    AsyncImage(url: url) { photo in
-                                        photo.resizable().scaledToFill()
-                                    } placeholder: {
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color(.secondarySystemBackground))
-                                    }
-                                    .frame(width: 84, height: 84)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                }
+                                KutanaListingPhoto(
+                                    url: item.listing_images?.first?.storage_path
+                                        .flatMap { identity.configuration?.publicListingImageURL(path: $0) }
+                                )
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(item.title).font(.headline)
                                     Text(KutanaFormat.xaf(item.price_xaf))
@@ -62,9 +83,10 @@ struct MarketView: View {
                             }.padding(.vertical, 5)
                         }
                     }
-                    if visible.isEmpty && !loading {
+                    if visible.isEmpty && !loading && hasLoaded {
                         ContentUnavailableView("Aucune annonce", systemImage: "tag",
                             description: Text(identity.isConfigured ? "Les annonces publiées apparaîtront ici." : "La nouvelle base KUTANA n'est pas encore connectée."))
+                    }
                     }
                 }
             }
@@ -81,7 +103,7 @@ struct MarketView: View {
     @MainActor private func load() async {
         guard let configuration = identity.configuration else { return }
         loading = true; errorMessage = nil
-        defer { loading = false }
+        defer { loading = false; hasLoaded = true }
         do { listings = try await KutanaAPI(configuration: configuration).publishedListings() }
         catch { errorMessage = "Impossible de récupérer les annonces." }
     }
@@ -105,13 +127,7 @@ private struct ListingDetailView: View {
                         HStack(spacing: 10) {
                             ForEach(photos) { photo in
                                 if let url = identity.configuration?.publicListingImageURL(path: photo.storage_path) {
-                                    AsyncImage(url: url) { picture in
-                                        picture.resizable().scaledToFill()
-                                    } placeholder: {
-                                        ProgressView()
-                                    }
-                                    .frame(width: 285, height: 225)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    KutanaListingPhoto(url: url, width: 285, height: 225)
                                 }
                             }
                         }
