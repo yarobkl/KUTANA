@@ -56,8 +56,9 @@ jobs:
           actual = settings.get("PRODUCT_BUNDLE_IDENTIFIER")
           if actual != expected:
               raise SystemExit(f"Bundle ID mismatch: expected {expected}; got {actual}")
-          if settings.get("SDKROOT") != "iphoneos":
-              raise SystemExit("Not an iPhone device build")
+          sdkroot = str(settings.get("SDKROOT", "")).lower()
+          if "iphoneos" not in sdkroot:
+              raise SystemExit(f"Not an iPhone device build: SDKROOT={sdkroot!r}")
           print(f"Validated target KUTANA / bundle {expected} / SDK iphoneos")
           PY
 
