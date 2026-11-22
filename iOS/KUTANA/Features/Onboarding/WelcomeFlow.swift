@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 
 // KUTANA only. This flow is deliberately independent of all other Yaro products.
 private enum WelcomePage: Hashable { case splash, introduction, login, registration, reset }
@@ -219,8 +220,7 @@ private struct KutanaLoginView: View {
                     .disabled(!identity.isConfigured || identity.busy || email.isEmpty || password.isEmpty)
                     .padding(.top, 31)
                 Text("ou continuer avec").font(.footnote).foregroundStyle(.secondary).padding(.vertical, 24)
-                KutanaSocialButton(title: "Continuer avec Apple", icon: "apple.logo")
-                KutanaSocialButton(title: "Continuer avec Google", icon: "g.circle.fill").padding(.top, 12)
+                KutanaSocialSignInButtons()
                 HStack(spacing: 4) {
                     Text("Vous n'avez pas encore de compte ?").foregroundStyle(.secondary)
                     Button("Créer un compte", action: createAccount).fontWeight(.semibold)
@@ -268,7 +268,14 @@ private struct KutanaRegistrationView: View {
                     }
                 }
                     .disabled(!identity.isConfigured || identity.busy || fullName.isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty)
-                    .padding(.top, 40)
+                    .padding(.top, 30)
+                Text("Mot de passe : 12 caractères minimum.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("ou vous inscrire avec")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.top, 12)
+                KutanaSocialSignInButtons()
+                    .padding(.bottom, 4)
                 HStack {
                     Spacer()
                     Text("Vous avez déjà un compte ?").foregroundStyle(.secondary)
@@ -300,17 +307,94 @@ private struct KutanaResetPasswordView: View {
     }
 }
 
-private struct KutanaSocialButton: View {
-    let title: String
-    let icon: String
+private struct KutanaSocialSignInButtons: View {
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @State private var appleNonce: String?
+
     var body: some View {
-        Button {} label: {
-            Label(title, systemImage: icon).font(.system(size: 15, weight: .semibold))
-                .frame(maxWidth: .infinity).frame(height: 50)
+        VStack(spacing: 12) {
+            // Apple's official native button includes the required Apple mark and consent sheet.
+            SignInWithAppleButton(.continue, onRequest: { request in
+                do {
+                    let nonce = try KutanaAuthNonce.generate()
+                    appleNonce = nonce
+                    request.requestedScopes = [.email, .fullName]
+                    request.nonce = KutanaAuthNonce.appleHash(nonce)
+                } catch {
+                    appleNonce = nil
+                    identity.reportSocialSignInFailure(error)
+                }
+            }, onCompletion: { result in
+                switch result {
+                case .success(let result):
+                    guard let credential = result.credential as? ASAuthorizationAppleIDCredential,
+                          let data = credential.identityToken,
+                          let token = String(data: data, encoding: .utf8),
+                          let nonce = appleNonce else {
+                        identity.reportSocialSignInFailure(KutanaSocialAuthError.missingAppleToken)
+                        return
+                    }
+                    appleNonce = nil
+                    Task { await identity.signInWithApple(idToken: token, nonce: nonce) }
+                case .failure(let error):
+                    appleNonce = nil
+                    identity.reportSocialSignInFailure(error)
+                }
+            })
+            .signInWithAppleButtonStyle(.black)
+            .frame(height: 50)
+            .clipShape(RoundedRectangle(cornerRadius: 13))
+            .accessibilityLabel("Continuer avec Apple")
+
+            Button {
+                Task { await identity.signInWithGoogle() }
+            } label: {
+                HStack(spacing: 12) {
+                    KutanaGoogleMark().frame(width: 23, height: 23)
+                    Text("Continuer avec Google")
+                        .font(.system(size: 15, weight: .semibold))
+                }
                 .foregroundStyle(KutanaTheme.ink)
-                .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.gray.opacity(0.23)))
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color.white)
+                .overlay(RoundedRectangle(cornerRadius: 13)
+                    .stroke(Color.gray.opacity(0.28), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Continuer avec Google")
         }
-        .disabled(true) // OAuth provider not yet configured.
+        .disabled(identity.busy || !identity.isConfigured)
+    }
+}
+
+/// Four-color Google G mark drawn natively, without a remote image or font.
+private struct KutanaGoogleMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let radius = size.width * 0.35
+            let segments: [(Color, Double, Double)] = [
+                (Color(red: 0.92, green: 0.26, blue: 0.21), 42, 134),
+                (Color(red: 0.98, green: 0.74, blue: 0.05), 134, 181),
+                (Color(red: 0.21, green: 0.66, blue: 0.33), 181, 257),
+                (Color(red: 0.26, green: 0.52, blue: 0.96), 257, 342)
+            ]
+            for (color, start, end) in segments {
+                var arc = Path()
+                arc.addArc(center: center, radius: radius,
+                           startAngle: .degrees(start), endAngle: .degrees(end),
+                           clockwise: false)
+                context.stroke(arc, with: .color(color),
+                               style: StrokeStyle(lineWidth: size.width * 0.20))
+            }
+            var bar = Path()
+            bar.move(to: CGPoint(x: size.width * 0.50, y: size.height * 0.51))
+            bar.addLine(to: CGPoint(x: size.width * 0.94, y: size.height * 0.51))
+            context.stroke(bar, with: .color(Color(red: 0.26, green: 0.52, blue: 0.96)),
+                           style: StrokeStyle(lineWidth: size.width * 0.20))
+        }
+        .accessibilityHidden(true)
     }
 }
 
