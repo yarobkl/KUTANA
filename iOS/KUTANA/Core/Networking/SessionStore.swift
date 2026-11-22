@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Security
+import AuthenticationServices
 
 /// Observable single-account session. Persist only credentials in iOS Keychain.
 @MainActor final class KutanaSessionStore: ObservableObject {
@@ -11,6 +12,7 @@ import Security
 
     let configuration: BackendConfiguration?
     private let tokenStore = SecureTokenStore()
+    private let googleOAuth = KutanaGoogleOAuth()
     private let storageAccount = "primary"
     private var auth: KutanaAuthService?
     private(set) var active: PersistedSession?
@@ -44,6 +46,45 @@ import Security
         defer { busy = false }
         do { try save(try await auth.signIn(email: email, password: password)) }
         catch { errorMessage = error.localizedDescription }
+    }
+
+    func signInWithApple(idToken: String, nonce: String) async {
+        guard let auth else {
+            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            return
+        }
+        busy = true; errorMessage = nil; notice = nil
+        defer { busy = false }
+        do {
+            try save(try await auth.signInWithApple(idToken: idToken, nonce: nonce))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func signInWithGoogle() async {
+        guard let auth, let configuration else {
+            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            return
+        }
+        busy = true; errorMessage = nil; notice = nil
+        defer { busy = false }
+        do {
+            let response = try await googleOAuth.authorize(configuration: configuration)
+            try save(try await auth.exchangeGoogleCode(response.code, verifier: response.verifier))
+        } catch {
+            if let error = error as? KutanaSocialAuthError, case .cancelled = error {
+                return
+            }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func reportSocialSignInFailure(_ error: Error) {
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            return
+        }
+        errorMessage = error.localizedDescription
     }
 
     func signUp(email: String, password: String, fullName: String) async -> Bool {
