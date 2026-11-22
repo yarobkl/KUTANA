@@ -262,6 +262,75 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+
+    func applicationCV(applicationID: UUID, accessToken: String) async throws -> ApplicationCVRecord? {
+        let results: [ApplicationCVRecord] = try await get("application_cvs", query: [
+            URLQueryItem(name: "select", value: "application_id,storage_path,file_name"),
+            URLQueryItem(name: "application_id", value: "eq.\(applicationID.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return results.first
+    }
+
+    /// Upload a PDF into the candidate's private bucket folder, then attach it
+    /// to their own application through a server-authorized RPC.
+    func uploadApplicationCV(_ pdf: Data, filename: String, applicationID: UUID,
+                             ownerID: UUID, accessToken: String) async throws -> UUID {
+        guard (5...5_242_880).contains(pdf.count),
+              pdf.starts(with: Data("%PDF-".utf8)), !accessToken.isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let cleanName = String(filename.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ").prefix(160))
+        guard !cleanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let path = "\(ownerID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).pdf"
+        let url = configuration.endpoint.appending(path: "storage/v1/object/kutana-cvs/\(path)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 40
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
+        request.setValue("false", forHTTPHeaderField: "x-upsert")
+        request.httpBody = pdf
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try await rpc(name: "attach_application_cv", body: [
+            "p_application": applicationID.uuidString.lowercased(),
+            "p_path": path,
+            "p_file_name": cleanName
+        ], accessToken: accessToken)
+    }
+
+    /// RLS allows reading only by the candidate or the recruiting job owner.
+    /// An authenticated PDF is copied to a temporary local file for Quick Look.
+    func downloadApplicationCV(_ cv: ApplicationCVRecord, accessToken: String) async throws -> URL {
+        guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
+        let pieces = cv.storage_path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 2, UUID(uuidString: String(pieces[0])) != nil,
+              pieces[1].hasSuffix(".pdf"),
+              UUID(uuidString: String(pieces[1].dropLast(4))) != nil else {
+            throw BackendError.invalidResponse
+        }
+        let url = configuration.endpoint.appending(path: "storage/v1/object/authenticated/kutana-cvs/\(cv.storage_path)")
+        var request = URLRequest(url: url)
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode),
+              (5...5_242_880).contains(data.count),
+              data.starts(with: Data("%PDF-".utf8)) else { throw BackendError.invalidResponse }
+        let local = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KUTANA-CV-\(UUID().uuidString)")
+            .appendingPathExtension("pdf")
+        try data.write(to: local, options: .atomic)
+        return local
+    }
+
     private func rpc<T: Encodable>(name: String, body: T, accessToken: String) async throws -> UUID {
         guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
         let url = configuration.endpoint.appending(path: "rest/v1/rpc/\(name)")
