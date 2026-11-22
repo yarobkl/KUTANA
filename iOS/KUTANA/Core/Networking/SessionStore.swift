@@ -70,6 +70,7 @@ import AuthenticationServices
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
+            try await auth.verifySocialProvider("google")
             let response = try await googleOAuth.authorize(configuration: configuration)
             try save(try await auth.exchangeGoogleCode(response.code, verifier: response.verifier))
         } catch {
