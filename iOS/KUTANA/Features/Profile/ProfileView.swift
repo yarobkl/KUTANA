@@ -16,6 +16,9 @@ struct ProfileView: View {
                     NavigationLink { MyPublicationsView() } label: {
                         Label("Mes offres publiées", systemImage: "briefcase")
                     }
+                    NavigationLink { ReceivedApplicationsView() } label: {
+                        Label("Candidatures reçues", systemImage: "person.2.crop.square.stack")
+                    }
                 }
                 Section("Annonces") {
                     NavigationLink { MyPublicationsView() } label: {
