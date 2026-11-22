@@ -17,7 +17,7 @@ struct RootView: View {
         TabView(selection: $selection) {
             JobsView(unreadCount: unreadNotifications).modifier(KutanaTabEntrance())
                 .tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
-            MarketView().modifier(KutanaTabEntrance())
+            MarketView(unreadCount: unreadNotifications).modifier(KutanaTabEntrance())
                 .tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
             PublishView().modifier(KutanaTabEntrance())
                 .tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
