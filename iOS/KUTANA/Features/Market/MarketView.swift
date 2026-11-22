@@ -1,6 +1,40 @@
 import SwiftUI
 
 struct MarketView: View {
+    let unreadCount: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("kutana.marketSavedFavorites") private var storedFavorites = ""
+    @State private var showFavoritesSheet = false
+    @State private var favoritesOnly = false
+    @State private var headerShown = false
+    @State private var priceBand: PriceBand = .all
+
+    private enum PriceBand: String, CaseIterable {
+        case all = "Tous les prix"
+        case low = "Moins de 50 000 FCFA"
+        case medium = "50 000 à 200 000 FCFA"
+        case high = "Plus de 200 000 FCFA"
+
+        func matches(_ price: Int64) -> Bool {
+            switch self {
+            case .all: return true
+            case .low: return price < 50_000
+            case .medium: return (50_000...200_000).contains(price)
+            case .high: return price > 200_000
+            }
+        }
+    }
+
+    private var savedIDs: Set<UUID> {
+        Set(storedFavorites.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+    }
+
+    private func toggleSaved(_ id: UUID) {
+        var ids = savedIDs
+        if ids.contains(id) { ids.remove(id) }
+        else { ids.insert(id) }
+        storedFavorites = ids.map(\.uuidString).sorted().joined(separator: ",")
+    }
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var listings: [ListingRecord] = []
     @State private var category = "Toutes"
@@ -16,7 +50,8 @@ struct MarketView: View {
             let matchesCategory = category == "Toutes" || item.category == category
             let matchesQuery = query.isEmpty || [item.title, item.city, item.description]
                 .contains { $0.localizedCaseInsensitiveContains(query) }
-            return matchesCategory && matchesQuery
+            return matchesCategory && matchesQuery && priceBand.matches(item.price_xaf)
+                && (!favoritesOnly || savedIDs.contains(item.id))
         }
     }
 
@@ -24,12 +59,13 @@ struct MarketView: View {
         NavigationStack {
             List {
                 introduction
-                categorySection
                 resultsSection
             }
-            .searchable(text: $query, prompt: "Article, ville, description…")
             .sensoryFeedback(.selection, trigger: category)
-            .navigationTitle("Annonces")
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showFavoritesSheet) {
+                favoritesSheet
+            }
             .refreshable { await load() }
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
@@ -40,45 +76,148 @@ struct MarketView: View {
 
     private var introduction: some View {
         Section {
-            KutanaFeatureHero(eyebrow: "Annonces",
-                              title: "Les bonnes trouvailles sont près de vous.",
-                              subtitle: "Achetez, vendez et échangez directement au Congo.",
-                              symbol: "tag")
+            VStack(alignment: .leading, spacing: 17) {
+                HStack {
+                    Text("Annonces")
+                        .font(.system(size: 36, weight: .bold))
+                        .tracking(-1)
+                    Spacer()
+                    NavigationLink {
+                        NotificationsView()
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 27, weight: .regular))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
+                            if unreadCount > 0 {
+                                Circle()
+                                    .fill(KutanaTheme.blue)
+                                    .frame(width: 9, height: 9)
+                                    .offset(x: 1, y: -1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(unreadCount > 0
+                                        ? "Notifications, \(unreadCount) non lues"
+                                        : "Notifications")
+                }
+
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                    TextField("Produit, vendeur ou ville", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                }
+                .padding(.horizontal, 16)
+                .frame(height: 54)
+                .background(Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 1)
+                }
+
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(categories, id: \.self) { option in
+                            Button(option) { category = option }
+                        }
+                    } label: {
+                        filterPill(category == "Toutes" ? "Catégorie" : category,
+                                   symbol: "chevron.down")
+                    }
+                    Menu {
+                        ForEach(PriceBand.allCases, id: \.self) { band in
+                            Button(band.rawValue) { priceBand = band }
+                        }
+                    } label: {
+                        filterPill(priceBand == .all ? "Prix" : "Prix choisi",
+                                   symbol: "chevron.down")
+                    }
+                    Button {
+                        showFavoritesSheet = true
+                    } label: {
+                        filterPill("Favoris", symbol: favoritesOnly ? "bookmark.fill" : "bookmark")
+                            .foregroundStyle(favoritesOnly ? KutanaTheme.blue : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .opacity(headerShown || reduceMotion ? 1 : 0)
+            .offset(y: headerShown || reduceMotion ? 0 : 8)
+            .onAppear {
+                if reduceMotion { headerShown = true }
+                else { withAnimation(.easeOut(duration: 0.3)) { headerShown = true } }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 5)
         }
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
     }
 
-    private var categorySection: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(categories, id: \.self) { option in
-                        categoryButton(option)
+    private func filterPill(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 8) {
+            if symbol == "bookmark" || symbol == "bookmark.fill" {
+                Image(systemName: symbol)
+            }
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.83)
+            if symbol == "chevron.down" {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+        }
+        .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity, minHeight: 45)
+        .padding(.horizontal, 9)
+        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color(.separator).opacity(0.3), lineWidth: 1))
+        .contentShape(Capsule())
+    }
+
+    private var favoritesSheet: some View {
+        NavigationStack {
+            List {
+                Toggle("Afficher uniquement mes favoris", isOn: $favoritesOnly)
+                Section("Enregistrer sur cet iPhone") {
+                    ForEach(listings) { item in
+                        Button {
+                            toggleSaved(item.id)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.title).foregroundStyle(.primary)
+                                    Text(item.city).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: savedIDs.contains(item.id)
+                                      ? "bookmark.fill" : "bookmark")
+                                    .foregroundStyle(KutanaTheme.blue)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if listings.isEmpty {
+                        Text("Aucune annonce publiée à enregistrer.")
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 3)
             }
-        } header: {
-            Text("Explorer par catégorie")
+            .navigationTitle("Favoris")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { showFavoritesSheet = false }
+                }
+            }
         }
-    }
-
-    private func categoryButton(_ option: String) -> some View {
-        let selected = category == option
-        return Button {
-            withAnimation(KutanaMotion.quick) { category = option }
-        } label: {
-            Text(option)
-                .font(.subheadline.weight(selected ? .semibold : .medium))
-                .foregroundStyle(selected ? Color.white : Color.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(selected ? KutanaTheme.blue : Color(.secondarySystemGroupedBackground),
-                            in: Capsule())
-        }
-        .buttonStyle(KutanaPressStyle())
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var resultsSection: some View {
