@@ -26,3 +26,14 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana
         INFOPLIST_KEY_CFBundleDisplayName: KUTANA
         DEVELOPMENT_TEAM: UK4UQCQ57G
+schemes:
+  KUTANA:
+    build:
+      targets:
+        KUTANA: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+    management:
+      shared: true
