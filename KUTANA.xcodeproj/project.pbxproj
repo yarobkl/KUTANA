@@ -24,6 +24,7 @@
 		C22E1EF1B701359D2521B269 /* SocialAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D81EF3F12E2C3E61EDE18D /* SocialAuth.swift */; };
 		D1D5454039FD6692A55ED77D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73DF1095253110F06ACB4C /* Theme.swift */; };
 		D50075DB7FFDB4ABFF4C8C87 /* KUTANAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834B176ECF2BD064214DA7E6 /* KUTANAApp.swift */; };
+		D9A5B12155798BC76215D240 /* ProblemReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4033F53F2AF6087B00873FD /* ProblemReportView.swift */; };
 		E7102FB92AC99245675DEBE2 /* JobsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B894E7348A0124ECC126848B /* JobsView.swift */; };
 		EC176B6AC7A752F5F69D6CB3 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F97D6759892362F0B87894A /* AuthService.swift */; };
 /* End PBXBuildFile section */
@@ -49,6 +50,7 @@
 		C2ED9D131213DDF9A0FEAEDE /* KUTANA.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KUTANA.entitlements; sourceTree = "<group>"; };
 		C3B9995BF1C8F46FC46B2DC9 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		C408A52F6D8ADD48DD1F04EA /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		D4033F53F2AF6087B00873FD /* ProblemReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemReportView.swift; sourceTree = "<group>"; };
 		E6FC1DB8192BE88056E947BA /* ApplicationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationsView.swift; sourceTree = "<group>"; };
 		FDB76E5271552A4786253CA4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -145,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				1DFCC0E1B84BAC1B0016DDCC /* NotificationsView.swift */,
+				D4033F53F2AF6087B00873FD /* ProblemReportView.swift */,
 				0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */,
 			);
 			path = Profile;
@@ -285,6 +288,7 @@
 				97CD4FF6222E19BC7A5197BA /* MessagesView.swift in Sources */,
 				43725B17FB68E923ECEB173A /* Models.swift in Sources */,
 				81897870D39F3D9CB39ACCE9 /* NotificationsView.swift in Sources */,
+				D9A5B12155798BC76215D240 /* ProblemReportView.swift in Sources */,
 				9FD9481EB1F14BCF28584373 /* ProfileView.swift in Sources */,
 				8BC680BA659FC99518A4569D /* RootView.swift in Sources */,
 				A34AD3F009396E7F657A1443 /* SecureTokenStore.swift in Sources */,
@@ -334,7 +338,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -429,7 +433,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
