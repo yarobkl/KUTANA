@@ -71,9 +71,32 @@ actor KutanaAuthService {
         return try validatedSession(response)
     }
 
+    /// Public Auth settings: don't launch a provider when it is disabled server-side.
+    func verifySocialProvider(_ name: String) async throws {
+        guard let url = URL(string: "auth/v1/settings", relativeTo: config.endpoint)?.absoluteURL else {
+            throw AuthFailure.invalidSession
+        }
+        var request = URLRequest(url: url)
+        request.setValue(config.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        let (data, response) = try await http.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw AuthFailure.remoteMessage("Impossible de vérifier les connexions externes de KUTANA.")
+        }
+        let settings = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let providers = settings?["external"] as? [String: Any]
+        if (providers?[name] as? Bool) == false {
+            let label = name == "apple" ? "Apple" : "Google"
+            throw AuthFailure.remoteMessage("Connexion \\(label) indisponible : ce service n’est pas encore activé sur KUTANA.")
+        }
+    }
+
     /// Supabase GoTrue exchanges Apple's native identity token for a KUTANA session.
     func signInWithApple(idToken: String, nonce: String) async throws -> AuthSession {
         guard !idToken.isEmpty, !nonce.isEmpty else { throw AuthFailure.invalidSession }
+        try await verifySocialProvider("apple")
         let response: AuthResponse = try await send(path: "token?grant_type=id_token", body: [
             "provider": "apple", "id_token": idToken, "nonce": nonce
         ])
