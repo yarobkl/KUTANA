@@ -15,9 +15,13 @@ Application mobile native SwiftUI conçue pour les offres d'emploi et les petite
 
 - Les quatre suites de tests Swift passent en local (environnement Linux).
 - Le backend dédié Supabase KUTANA existe et ses neuf migrations ont déjà été appliquées.
-- La compilation sur Xcode et le fonctionnement sur iPhone **ne sont pas encore confirmés** ; GitHub Actions doit fournir le premier diagnostic réel.
-- Une archive `KUTANA.app` de simulateur **ne constitue pas un binaire TestFlight**. La signature, l'archive iOS et la distribution App Store Connect interviendront après validation du build.
+- La compilation simulateur et l'archive Release pour iPhone **sans signature** ont réussi sur GitHub Actions (21 novembre 2026). Le fonctionnement sur un iPhone physique reste à vérifier.
+- Les archives actuelles **ne sont pas des builds TestFlight**. Le workflow manuel `.github/workflows/testflight.yml` prépare la signature, l'export IPA et l'envoi, après configuration des sept secrets Apple (voir `docs/TESTFLIGHT-SETUP.md`). Il n'a pas encore été lancé avec les certificats.
 - Les maquettes approuvées n'ont pas encore été contrôlées au pixel près sur simulateur.
+
+## Distribution TestFlight
+
+Le pipeline de distribution est volontairement manuel. Les identifiants Apple doivent être enregistrés exclusivement dans les secrets GitHub, jamais dans le dépôt. Lire [le guide de préparation TestFlight](docs/TESTFLIGHT-SETUP.md) avant de lancer le workflow.
 
 ## Lancer les tests localement
 
