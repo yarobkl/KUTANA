@@ -61,3 +61,34 @@ jobs:
           if enabled.get("apple") is not True or enabled.get("google") is not True:
               raise SystemExit("KUTANA social login not ready: both Apple and Google must be enabled in Supabase Auth before claiming functional login.")
           PY
+
+      - name: Probe Google OAuth callback and compare an invalid callback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, re, urllib.request, urllib.parse, urllib.error
+          from pathlib import Path
+          t=Path("project.yml").read_text()
+          key=re.search(r'^\s*INFOPLIST_KEY_KUTANA_SUPABASE_PUBLISHABLE_KEY:\s*["\x27]?([^"\x27\s]+)',t,re.M).group(1)
+          challenge=base64.urlsafe_b64encode(hashlib.sha256(b"kutana-pkce-preflight-verifier").digest()).rstrip(b"=").decode()
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          client=urllib.request.build_opener(NoRedirect())
+          def check(label,target):
+              query=urllib.parse.urlencode({"provider":"google","redirect_to":target,"code_challenge":challenge,"code_challenge_method":"s256"})
+              req=urllib.request.Request("https://xwhjzftrzikgqweowtus.supabase.co/auth/v1/authorize?"+query,headers={"apikey":key})
+              try:
+                  with client.open(req,timeout=30) as res: status, loc, body=res.status,res.headers.get("location",""),res.read(350)
+              except urllib.error.HTTPError as err:
+                  status,loc,body=err.code,err.headers.get("location",""),err.read(350)
+              host=urllib.parse.urlparse(loc).netloc
+              print(f"{label}: HTTP {status}, redirect host {host or '(none)'}")
+              if status>=400: print("Error detail:",body.decode(errors="replace")[:350])
+              return status,host
+          ok=check("KUTANA callback","kutana://auth/callback")
+          wrong=check("Invalid callback control","kutana-unlisted://not-allowed/callback")
+          if ok[0]>=400 or not ok[1]: raise SystemExit("Google OAuth failed to initiate for KUTANA callback")
+          if ok==wrong: print("CAUTION: Callback allowlist cannot be confirmed using the public OAuth initiation endpoint.")
+          print("Cloud OAuth initiation passed. Human Google consent and native app return remain untested.")
+          PY
