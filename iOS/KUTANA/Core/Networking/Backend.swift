@@ -97,13 +97,8 @@ actor KutanaAPI {
 
 
     /// Only applications attached to the signed-in recruiter's jobs are visible through RLS.
-    func receivedApplications(ownerID: UUID, accessToken: String) async throws -> [RecruiterApplication] {
-        try await get("applications", query: [
-            URLQueryItem(name: "select", value: "id,job_id,candidate_id,status,created_at,jobs!inner(title,company,author_id)"),
-            URLQueryItem(name: "jobs.author_id", value: "eq.\(ownerID.uuidString.lowercased())"),
-            URLQueryItem(name: "order", value: "created_at.desc"),
-            URLQueryItem(name: "limit", value: "100")
-        ], accessToken: accessToken)
+    func receivedApplications(accessToken: String) async throws -> [RecruiterApplication] {
+        try await get("rpc/received_applications", query: [], accessToken: accessToken)
     }
 
     /// The recruiter-only SQL RPC validates ownership and records an audit event.
