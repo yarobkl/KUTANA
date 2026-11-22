@@ -79,7 +79,7 @@ jobs:
           bundle_id = bundle["id"]
           print("Verified KUTANA bundle identifier:", identifier, "Apple resource ID:", bundle_id)
           def get_capabilities():
-              return api("GET", f"/v1/bundleIds/{bundle_id}/bundleIdCapabilities?limit=200").get("data", [])
+              return api("GET", f"/v1/bundleIds/{bundle_id}/bundleIdCapabilities").get("data", [])
           current = get_capabilities()
           apple_caps = [cap for cap in current if cap.get("attributes", {}).get("capabilityType") == "APPLE_ID_AUTH"]
           if apple_caps:
