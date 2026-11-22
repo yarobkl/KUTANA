@@ -5,6 +5,7 @@ struct JobsView: View {
     @State private var query = ""
     @State private var records: [JobRecord] = []
     @State private var loading = false
+    @State private var hasLoaded = false
     @State private var errorMessage: String?
 
     private var isPreview: Bool { identity.configuration == nil }
@@ -41,10 +42,15 @@ struct JobsView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                if loading { Section { ProgressView("Chargement des offres…") } }
+                if loading && !hasLoaded {
+                    Section("Offres récentes") {
+                        ForEach(0..<4, id: \.self) { _ in KutanaLoadingRow() }
+                    }
+                }
                 if let errorMessage {
                     Section { Text(errorMessage).foregroundStyle(.red).font(.footnote) }
                 }
+                if !loading || hasLoaded || isPreview {
                 Section(isPreview ? "Offres de démonstration" : "Offres récentes") {
                     ForEach(visible) { job in
                         NavigationLink {
@@ -58,9 +64,10 @@ struct JobsView: View {
                             }.padding(.vertical, 6)
                         }
                     }
-                    if visible.isEmpty && !loading {
+                    if visible.isEmpty && !loading && hasLoaded {
                         ContentUnavailableView.search(text: query)
                     }
+                }
                 }
             }
             .listStyle(.insetGrouped)
@@ -81,7 +88,7 @@ struct JobsView: View {
     @MainActor private func load() async {
         guard let configuration = identity.configuration else { return }
         loading = true; errorMessage = nil
-        defer { loading = false }
+        defer { loading = false; hasLoaded = true }
         do { records = try await KutanaAPI(configuration: configuration).publishedJobs() }
         catch { errorMessage = "Impossible de charger les offres. Réessayez." }
     }
