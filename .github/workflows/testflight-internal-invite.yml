@@ -163,20 +163,19 @@ jobs:
               raise SystemExit("Expected internal tester address is missing from this group.")
           tester_state = target.get("attributes", {}).get("state", "")
           print("Existing tester status:", tester_state)
-          if tester_state in ("ACCEPTED", "INSTALLED"):
-              print("Tester has already accepted TestFlight; no duplicate invite requested.")
-          else:
-              invite = api("POST", "/v1/betaTesterInvitations", {
-                  "data": {
-                      "type": "betaTesterInvitations",
-                      "relationships": {
-                          "app": {"data": {"type": "apps", "id": app_id}},
-                          "betaTester": {"data": {"type": "betaTesters", "id": target["id"]}}
-                      }
+          # An installed-state tester explicitly reported not receiving the app invite.
+          # Ask Apple for one resend even if TestFlight marks the tester installed.
+          invite = api("POST", "/v1/betaTesterInvitations", {
+              "data": {
+                  "type": "betaTesterInvitations",
+                  "relationships": {
+                      "app": {"data": {"type": "apps", "id": app_id}},
+                      "betaTester": {"data": {"type": "betaTesters", "id": target["id"]}}
                   }
-              })
-              print("Apple accepted a TestFlight invitation (re)send request:",
-                    invite.get("data", {}).get("id", "no response id"))
+              }
+          })
+          print("Apple accepted a TestFlight invitation resend request:",
+                invite.get("data", {}).get("id", "no response id"))
           print("Apple controls final email delivery and TestFlight app notifications.")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("## KUTANA TestFlight internal tester\n")
