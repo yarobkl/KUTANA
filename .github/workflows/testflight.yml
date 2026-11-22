@@ -1,0 +1,143 @@
+name: KUTANA TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kutana-testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.KUTANA_APPLE_TEAM_ID }}
+      DISTRIBUTION_P12_BASE64: ${{ secrets.KUTANA_DISTRIBUTION_P12_BASE64 }}
+      DISTRIBUTION_P12_PASSWORD: ${{ secrets.KUTANA_DISTRIBUTION_P12_PASSWORD }}
+      APPSTORE_PROFILE_BASE64: ${{ secrets.KUTANA_APPSTORE_PROFILE_BASE64 }}
+      ASC_API_KEY_ID: ${{ secrets.KUTANA_ASC_API_KEY_ID }}
+      ASC_API_ISSUER_ID: ${{ secrets.KUTANA_ASC_API_ISSUER_ID }}
+      ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify signing prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in APPLE_TEAM_ID DISTRIBUTION_P12_BASE64 DISTRIBUTION_P12_PASSWORD APPSTORE_PROFILE_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_PRIVATE_KEY_BASE64; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing repository secret for $key; see docs/TESTFLIGHT-SETUP.md"
+              exit 1
+            fi
+          done
+          xcodebuild -version
+          XCODE_MAJOR="$(xcodebuild -version | awk '/^Xcode / {split($2, v, "."); print v[1]}')"
+          if [[ -z "$XCODE_MAJOR" || "$XCODE_MAJOR" -lt 26 ]]; then
+            echo "::error::Xcode 26 or later is required for App Store Connect uploads."
+            exit 1
+          fi
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import distribution certificate and provisioning profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/kutana-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          printf '%s' "$DISTRIBUTION_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" -P "$DISTRIBUTION_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          printf '%s' "$APPSTORE_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/kutana.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/kutana.mobileprovision" > "$RUNNER_TEMP/kutana-profile.plist"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/kutana-profile.plist")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/kutana-profile.plist")"
+          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/kutana-profile.plist")"
+          if [[ "$PROFILE_APP_ID" != "$APPLE_TEAM_ID.fr.yaroconsulting.kutana" ]]; then
+            echo "::error::Provisioning profile does not match the KUTANA bundle ID and team."
+            exit 1
+          fi
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/kutana.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "KUTANA_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Generate Xcode project and signed archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          xcodebuild archive \
+            -project KUTANA.xcodeproj \
+            -scheme KUTANA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$KUTANA_PROFILE_NAME" \
+            MARKETING_VERSION='1.0.0' \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            archive
+
+      - name: Export signed IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import plistlib
+          from pathlib import Path
+          options = {
+              "method": "app-store-connect",
+              "signingStyle": "manual",
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "signingCertificate": "Apple Distribution",
+              "provisioningProfiles": {
+                  "fr.yaroconsulting.kutana": os.environ["KUTANA_PROFILE_NAME"]
+              },
+              "manageAppVersionAndBuildNumber": False
+          }
+          with Path(os.environ["RUNNER_TEMP"], "ExportOptions.plist").open("wb") as output:
+              plistlib.dump(options, output)
+          PY
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
+            -exportPath "$RUNNER_TEMP/kutana-export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          test -f "$RUNNER_TEMP/kutana-export/KUTANA.ipa"
+
+      - name: Upload signed IPA to TestFlight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_API_PRIVATE_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          xcrun altool --upload-app \
+            --file "$RUNNER_TEMP/kutana-export/KUTANA.ipa" \
+            --type ios \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_API_ISSUER_ID"
+
+      - name: Clean up signing materials
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/kutana.mobileprovision" "$RUNNER_TEMP/kutana-profile.plist"
+          rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
