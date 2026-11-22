@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
@@ -168,6 +170,14 @@ private struct ListingDraftFormView: View {
                 TextField("État, caractéristiques, accessoires…", text: $description, axis: .vertical)
                     .lineLimit(5...12)
             }
+            Section("Photos") {
+                if let savedID, !published {
+                    ListingPhotoUploader(listingID: savedID)
+                } else if savedID == nil {
+                    Text("Enregistrez le brouillon pour ajouter les photos.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
             Section {
                 if let savedID {
                     Label(published ? "Publication en ligne" : "Brouillon privé enregistré", systemImage: "checkmark.circle.fill")
@@ -229,7 +239,7 @@ private struct ListingDraftFormView: View {
             published = true
             NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
         } catch {
-            errorMessage = "Publication impossible. Vérifiez votre e-mail et réessayez."
+            errorMessage = "Publication impossible. Vérifiez votre e-mail et ajoutez au moins une photo."
         }
     }
 
@@ -269,6 +279,14 @@ struct MyPublicationsView: View {
                 ForEach(listings) { item in
                     publicationRow(title: item.title, subtitle: "\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)",
                                    status: item.status, kind: "listing", id: item.id)
+                    if item.status == "draft" {
+                        NavigationLink {
+                            ListingPhotoManagerView(listingID: item.id)
+                        } label: {
+                            Label("Gérer les photos · \(item.title)", systemImage: "photo.on.rectangle")
+                                .font(.subheadline)
+                        }
+                    }
                 }
                 if listings.isEmpty && !loading {
                     Text("Aucune annonce créée").foregroundStyle(.secondary)
@@ -422,6 +440,111 @@ struct ReportContentSheet: View {
             sent = true
         } catch {
             errorMessage = "Impossible d'enregistrer le signalement."
+        }
+    }
+}
+
+
+/// Shared draft photo flow: available for newly created listings and existing drafts.
+struct ListingPhotoManagerView: View {
+    let listingID: UUID
+    var body: some View {
+        ScrollView {
+            ListingPhotoUploader(listingID: listingID)
+                .padding(20)
+        }
+        .navigationTitle("Photos de l'annonce")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ListingPhotoUploader: View {
+    let listingID: UUID
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @State private var selected: [PhotosPickerItem] = []
+    @State private var images: [ListingImageRecord] = []
+    @State private var uploading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Jusqu'à 5 photos. La première sera utilisée pour présenter l'annonce.")
+                .font(.footnote).foregroundStyle(.secondary)
+            PhotosPicker(selection: $selected, maxSelectionCount: 5, matching: .images) {
+                Label(uploading ? "Ajout des photos…" : "Ajouter des photos", systemImage: "photo.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .disabled(uploading || images.count >= 5)
+            if uploading { ProgressView("Importation sécurisée…") }
+            if let errorMessage {
+                Text(errorMessage).font(.footnote).foregroundStyle(.red)
+            }
+            Text("\(images.count) photo(s) enregistrée(s)")
+                .font(.caption).foregroundStyle(.secondary)
+            ScrollView(.horizontal) {
+                HStack(spacing: 10) {
+                    ForEach(images) { item in
+                        if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
+                            AsyncImage(url: url) { photo in
+                                photo.resizable().scaledToFill()
+                            } placeholder: {
+                                ProgressView()
+                            }
+                            .frame(width: 108, height: 108)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Photo d'annonce")
+                        }
+                    }
+                }
+            }
+        }
+        .task(id: listingID) { await load() }
+        .onChange(of: selected) { _, items in
+            Task { await upload(items) }
+        }
+    }
+
+    @MainActor private func load() async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else { return }
+        do {
+            images = try await KutanaAPI(configuration: configuration)
+                .listingImages(listingID: listingID, accessToken: token)
+        } catch {
+            errorMessage = "Impossible de charger les photos."
+        }
+    }
+
+    @MainActor private func upload(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty, !uploading else { return }
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let owner = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour ajouter des photos."
+            return
+        }
+        uploading = true
+        errorMessage = nil
+        defer {
+            uploading = false
+            selected = []
+        }
+        let api = KutanaAPI(configuration: configuration)
+        for item in items.prefix(max(0, 5 - images.count)) {
+            do {
+                guard let original = try await item.loadTransferable(type: Data.self),
+                      let source = UIImage(data: original),
+                      let jpeg = source.jpegData(compressionQuality: 0.72),
+                      (1...5_242_880).contains(jpeg.count) else {
+                    errorMessage = "Photo illisible ou trop volumineuse (maximum 5 Mo)."
+                    continue
+                }
+                _ = try await api.uploadListingImage(jpeg, listingID: listingID,
+                                                    ownerID: owner, accessToken: token)
+                await load()
+            } catch {
+                errorMessage = "Échec de l'importation. Réessayez avec une photo JPEG."
+            }
         }
     }
 }
