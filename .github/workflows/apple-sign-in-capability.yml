@@ -69,7 +69,7 @@ jobs:
               raise SystemExit(f"Expected exactly one native KUTANA App ID, found {len(exact)}; no changes.")
           bundle_id = exact[0]["id"]
           print("Verified exact KUTANA App ID",identifier,"(",bundle_id,")")
-          caps = api("GET",f"/v1/bundleIds/{bundle_id}/bundleIdCapabilities?limit=200").get("data",[])
+          caps = api("GET",f"/v1/bundleIds/{bundle_id}/bundleIdCapabilities").get("data",[])
           if any(c.get("attributes",{}).get("capabilityType")=="APPLE_ID_AUTH" for c in caps):
               print("Sign in with Apple capability is already enabled for KUTANA.")
           else:
