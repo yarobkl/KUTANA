@@ -34,7 +34,7 @@ extension BackendConfiguration {
               UUID(uuidString: String(pieces[1])) != nil,
               pieces[2].hasSuffix(".jpg"),
               UUID(uuidString: String(pieces[2].dropLast(4))) != nil else { return nil }
-        return configuration.endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
+        return endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
     }
 
 }
