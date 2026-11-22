@@ -1,0 +1,52 @@
+name: KUTANA Apple signing readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/testflight-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-signing-readiness:
+    name: Check Apple signing secret availability
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HAS_APPLE_TEAM_ID: ${{ secrets.KUTANA_APPLE_TEAM_ID != '' }}
+      HAS_DISTRIBUTION_P12_BASE64: ${{ secrets.KUTANA_DISTRIBUTION_P12_BASE64 != '' }}
+      HAS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.KUTANA_DISTRIBUTION_P12_PASSWORD != '' }}
+      HAS_APPSTORE_PROFILE_BASE64: ${{ secrets.KUTANA_APPSTORE_PROFILE_BASE64 != '' }}
+      HAS_ASC_API_KEY_ID: ${{ secrets.KUTANA_ASC_API_KEY_ID != '' }}
+      HAS_ASC_API_ISSUER_ID: ${{ secrets.KUTANA_ASC_API_ISSUER_ID != '' }}
+      HAS_ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_BASE64 != '' }}
+    steps:
+      - name: Report readiness without printing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "## KUTANA — Apple signing prerequisites" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Repository secret | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          missing=0
+          for key in APPLE_TEAM_ID DISTRIBUTION_P12_BASE64 DISTRIBUTION_P12_PASSWORD APPSTORE_PROFILE_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_PRIVATE_KEY_BASE64; do
+            presence_name="HAS_${key}"
+            if [[ "${!presence_name}" == "true" ]]; then
+              printf '| KUTANA_%s | Configured |\n' "$key" >> "$GITHUB_STEP_SUMMARY"
+            else
+              printf '| KUTANA_%s | Missing |\n' "$key" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning title=KUTANA signing setup::KUTANA_${key} is not configured."
+              missing=$((missing+1))
+            fi
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if (( missing == 0 )); then
+            echo "All seven secrets are present. Certificate validity, App ID, and App Store Connect app record still need validation before upload." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "${missing} required secret(s) are missing. No signing, key export, or TestFlight upload attempted." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Readiness check completed; no secret values were exposed."
