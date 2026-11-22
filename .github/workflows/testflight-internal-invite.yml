@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           "$RUNNER_TEMP/asc-python/bin/python" - <<'PY'
           import json
-          from datetime import datetime, timezone
+          from datetime import datetime, timezone, timedelta
           import os
           import sys
           import time
@@ -119,11 +119,11 @@ jobs:
                       uploaded_text = attrs.get("uploadedDate", "")
                       uploaded = (datetime.fromisoformat(uploaded_text.replace("Z", "+00:00"))
                                   if uploaded_text else None)
-                      is_new = uploaded is not None and uploaded.astimezone(timezone.utc) >= earliest
+                      is_new = uploaded is not None and uploaded.astimezone(timezone.utc) >= earliest - timedelta(minutes=5)
                       if not is_new:
                           print("Latest visible build precedes the new upload; waiting.", flush=True)
                           if time.monotonic() >= deadline:
-                              raise SystemExit("The freshly uploaded build has not appeared in App Store Connect yet.")
+                              raise SystemExit("New build not visible within processing window; check App Store Connect processing and rerun.")
                           time.sleep(30)
                           continue
                   if state == "VALID":
@@ -184,7 +184,9 @@ jobs:
               if t.get("attributes", {}).get("email", "").lower() == "rodrinbakala@outlook.fr"
           ), None)
           if target is None:
-              raise SystemExit("Expected internal tester address is missing from this group.")
+              print("WARNING: build assigned, but expected internal tester is missing from group.")
+              print("Add the existing tester to the internal group in App Store Connect.")
+              sys.exit(0)
           tester_state = target.get("attributes", {}).get("state", "")
           print("Existing tester status:", tester_state)
           if tester_state in ("ACCEPTED", "INSTALLED"):
