@@ -52,6 +52,13 @@ struct ListingImageRecord: Identifiable, Codable, Sendable {
     let sort_order: Int
 }
 
+
+struct ApplicationCVRecord: Codable, Sendable {
+    let application_id: UUID
+    let storage_path: String
+    let file_name: String
+}
+
 struct ApplicationRecord: Identifiable, Codable, Sendable {
     let id: UUID
     let job_id: UUID
