@@ -3,7 +3,14 @@ import SwiftUI
 struct JobsView: View {
     let unreadCount: Int
     @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
+    @State private var selectedCity: String?
+    @State private var selectedContract: String?
+    @State private var favoritesOnly = false
+    @State private var favoriteIDs: Set<UUID> = []
+    @State private var showLoginNotice = false
+    @State private var headerShown = false
     @State private var records: [JobRecord] = []
     @State private var loading = false
     @State private var hasLoaded = false
@@ -20,24 +27,137 @@ struct JobsView: View {
         ]
     }
 
+    private var allJobs: [JobRecord] { isPreview ? previewRecords : records }
+
+    private var cities: [String] { Array(Set(allJobs.map(\.city))).sorted() }
+    private var contracts: [String] { Array(Set(allJobs.map(\.contract_type))).sorted() }
+
     private var visible: [JobRecord] {
-        let all = isPreview ? previewRecords : records
-        guard !query.isEmpty else { return all }
-        return all.filter { [$0.title, $0.company, $0.city, $0.contract_type]
-            .contains { $0.localizedCaseInsensitiveContains(query) } }
+        allJobs.filter { job in
+            (query.isEmpty || [job.title, job.company, job.city, job.contract_type]
+                .contains { $0.localizedCaseInsensitiveContains(query) })
+            && (selectedCity == nil || job.city == selectedCity)
+            && (selectedContract == nil || job.contract_type == selectedContract)
+            && (!favoritesOnly || favoriteIDs.contains(job.id))
+        }
+    }
+
+    private var searchHeader: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 17) {
+                HStack(alignment: .center) {
+                    Text("Emploi")
+                        .font(.system(size: 36, weight: .bold))
+                        .tracking(-1)
+                    Spacer()
+                    NavigationLink {
+                        NotificationsView()
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 27, weight: .regular))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
+                            if unreadCount > 0 {
+                                Circle()
+                                    .fill(KutanaTheme.blue)
+                                    .frame(width: 9, height: 9)
+                                    .offset(x: 1, y: -1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(unreadCount > 0
+                                        ? "Notifications, \(unreadCount) non lues"
+                                        : "Notifications")
+                }
+
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                    TextField("Métier, entreprise ou ville", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                }
+                .padding(.horizontal, 16)
+                .frame(height: 54)
+                .background(Color(.secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .strokeBorder(Color(.separator).opacity(0.28), lineWidth: 1)
+                }
+
+                HStack(spacing: 8) {
+                    Menu {
+                        Button("Tous les lieux") { selectedCity = nil }
+                        ForEach(cities, id: \.self) { city in
+                            Button(city) { selectedCity = city }
+                        }
+                    } label: {
+                        filterPill(selectedCity ?? "Lieu", symbol: "chevron.down")
+                    }
+                    Menu {
+                        Button("Tous les contrats") { selectedContract = nil }
+                        ForEach(contracts, id: \.self) { contract in
+                            Button(contract) { selectedContract = contract }
+                        }
+                    } label: {
+                        filterPill(selectedContract ?? "Contrat", symbol: "chevron.down")
+                    }
+                    Button {
+                        if identity.authenticated {
+                            withAnimation(KutanaMotion.quick) { favoritesOnly.toggle() }
+                        } else {
+                            showLoginNotice = true
+                        }
+                    } label: {
+                        filterPill("Favoris", symbol: favoritesOnly ? "bookmark.fill" : "bookmark")
+                            .foregroundStyle(favoritesOnly ? KutanaTheme.blue : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .opacity(headerShown || reduceMotion ? 1 : 0)
+            .offset(y: headerShown || reduceMotion ? 0 : 8)
+            .onAppear {
+                if reduceMotion { headerShown = true }
+                else { withAnimation(.easeOut(duration: 0.3)) { headerShown = true } }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 5)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+    }
+
+    private func filterPill(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 8) {
+            if symbol == "bookmark" || symbol == "bookmark.fill" {
+                Image(systemName: symbol)
+            }
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.83)
+            if symbol == "chevron.down" {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+        }
+        .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity, minHeight: 45)
+        .padding(.horizontal, 9)
+        .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color(.separator).opacity(0.3), lineWidth: 1))
+        .contentShape(Capsule())
     }
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    KutanaFeatureHero(eyebrow: "Emploi au Congo",
-                                      title: "Votre prochain élan commence ici.",
-                                      subtitle: "Explorez les offres et suivez les métiers qui vous intéressent.",
-                                      symbol: "arrow.up.right")
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                searchHeader
                 if isPreview {
                     Section {
                         Label("Aperçu de maquette · aucune de ces offres n'est réelle", systemImage: "info.circle")
@@ -93,19 +213,11 @@ struct JobsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .searchable(text: $query, prompt: "Métier, entreprise, ville…")
             .refreshable { await load() }
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
-                        .disabled(isPreview || loading).accessibilityLabel("Actualiser les offres")
-                    NavigationLink { NotificationsView() } label: {
-                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
-                    }
-                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
-                }
+            .toolbar(.hidden, for: .navigationBar)
+            .alert("Connectez-vous pour consulter vos favoris.", isPresented: $showLoginNotice) {
+                Button("OK", role: .cancel) {}
             }
-            .navigationTitle("KUTANA")
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
                 Task { await load() }
@@ -117,8 +229,25 @@ struct JobsView: View {
         guard let configuration = identity.configuration else { return }
         loading = true; errorMessage = nil
         defer { loading = false; hasLoaded = true }
-        do { records = try await KutanaAPI(configuration: configuration).publishedJobs() }
-        catch { errorMessage = "Impossible de charger les offres. Réessayez." }
+        do {
+            records = try await KutanaAPI(configuration: configuration).publishedJobs()
+            await loadFavoriteIDs()
+        } catch {
+            errorMessage = "Impossible de charger les offres. Réessayez."
+        }
+    }
+
+    @MainActor private func loadFavoriteIDs() async {
+        guard identity.authenticated, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            favoriteIDs = []
+            favoritesOnly = false
+            return
+        }
+        if let saved = try? await KutanaAPI(configuration: configuration)
+            .favorites(accessToken: token) {
+            favoriteIDs = Set(saved.map(\.job_id))
+        }
     }
 }
 
