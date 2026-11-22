@@ -22,7 +22,7 @@ struct PublishView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Préparez votre publication. Elle restera privée tant qu'un parcours de vérification et de publication n'aura pas été validé.")
+                    Text("Préparez une offre ou une annonce, ajoutez des photos si nécessaire, puis mettez-la en ligne. Vos brouillons restent privés jusqu'à votre décision.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Section {
