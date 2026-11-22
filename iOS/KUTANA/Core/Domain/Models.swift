@@ -75,7 +75,9 @@ struct RecruiterApplication: Identifiable, Codable, Sendable {
     let candidate_id: UUID
     let status: ApplicationState
     let created_at: Date
-    let jobs: ApplicationJobInfo?
+    let job_title: String
+    let company: String
+    let candidate_name: String
 }
 
 struct ApplicationWithJob: Identifiable, Codable, Sendable {
