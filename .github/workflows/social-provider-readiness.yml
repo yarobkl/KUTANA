@@ -52,6 +52,7 @@ jobs:
               enabled = {}
           with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("## KUTANA Supabase social login readiness\n\n")
+              summary.write("Live check against Supabase Auth public settings.\n\n")
               for provider in ("apple", "google"):
                   state = enabled.get(provider)
                   summary.write(f"- {provider.title()}: {'Enabled' if state is True else ('Disabled' if state is False else 'Could not determine')}\n")
