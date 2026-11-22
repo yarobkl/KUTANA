@@ -15,6 +15,7 @@
 		6DABBEAEFD3EEA5F22A3A6FB /* WelcomeFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340AE122734F25EB06F59646 /* WelcomeFlow.swift */; };
 		6EEDC9BBB4FE325D229FE07C /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C408A52F6D8ADD48DD1F04EA /* SessionStore.swift */; };
 		6FE85316E7D8BDA9244846B7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FDB76E5271552A4786253CA4 /* Assets.xcassets */; };
+		81897870D39F3D9CB39ACCE9 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFCC0E1B84BAC1B0016DDCC /* NotificationsView.swift */; };
 		8BC680BA659FC99518A4569D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113113605EE058DB4EE45861 /* RootView.swift */; };
 		97CD4FF6222E19BC7A5197BA /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E37AFAE53C9B6EB9BD04DE6 /* MessagesView.swift */; };
 		9FD9481EB1F14BCF28584373 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */; };
@@ -32,6 +33,7 @@
 		0E37AFAE53C9B6EB9BD04DE6 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
 		113113605EE058DB4EE45861 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		13D81EF3F12E2C3E61EDE18D /* SocialAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialAuth.swift; sourceTree = "<group>"; };
+		1DFCC0E1B84BAC1B0016DDCC /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		340AE122734F25EB06F59646 /* WelcomeFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeFlow.swift; sourceTree = "<group>"; };
 		481D57B16D0F5F0B53E70B9B /* Drafts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Drafts.swift; sourceTree = "<group>"; };
 		4C30ED7CD673B7471C1F79CE /* KUTANA.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KUTANA.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -142,6 +144,7 @@
 		C382037B74FBFC3A6FF401F4 /* Profile */ = {
 			isa = PBXGroup;
 			children = (
+				1DFCC0E1B84BAC1B0016DDCC /* NotificationsView.swift */,
 				0392CB71F84D241BDF7E3BE4 /* ProfileView.swift */,
 			);
 			path = Profile;
@@ -281,6 +284,7 @@
 				69B2802AB9B7B3D4145D283F /* MarketView.swift in Sources */,
 				97CD4FF6222E19BC7A5197BA /* MessagesView.swift in Sources */,
 				43725B17FB68E923ECEB173A /* Models.swift in Sources */,
+				81897870D39F3D9CB39ACCE9 /* NotificationsView.swift in Sources */,
 				9FD9481EB1F14BCF28584373 /* ProfileView.swift in Sources */,
 				8BC680BA659FC99518A4569D /* RootView.swift in Sources */,
 				A34AD3F009396E7F657A1443 /* SecureTokenStore.swift in Sources */,
@@ -330,7 +334,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 12;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -425,7 +429,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 12;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
