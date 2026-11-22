@@ -1,0 +1,139 @@
+name: KUTANA - Attach processed build to internal TestFlight group
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/testflight-internal-invite.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kutana-internal-invite
+  cancel-in-progress: false
+
+jobs:
+  enable-internal-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      ASC_APP_ID: '6837966878'
+      ASC_GROUP_ID: '013ba6e8-36f5-4f4e-8feb-f61803cd09aa'
+      ASC_API_KEY_ID: '4JXDLBF8XK'
+      ASC_API_ISSUER_ID: '2f5dc33c-0169-47e2-ac2c-241105d0ff28'
+      ASC_API_PRIVATE_KEY_P8: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_P8 }}
+    steps:
+      - name: Install temporary API client
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/asc-python"
+          "$RUNNER_TEMP/asc-python/bin/pip" install --quiet --disable-pip-version-check "PyJWT[crypto]"
+
+      - name: Check processing and enable KUTANA for its existing internal tester
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/asc-python/bin/python" - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import jwt
+
+          app_id = os.environ["ASC_APP_ID"]
+          group_id = os.environ["ASC_GROUP_ID"]
+          private_key = os.environ.get("ASC_API_PRIVATE_KEY_P8", "")
+          if "BEGIN PRIVATE KEY" not in private_key:
+              raise SystemExit("Missing Apple private key in GitHub Actions secret; no API request made.")
+          token = jwt.encode(
+              {"iss": os.environ["ASC_API_ISSUER_ID"], "iat": int(time.time()) - 20,
+               "exp": int(time.time()) + 900, "aud": "appstoreconnect-v1"},
+              private_key, algorithm="ES256",
+              headers={"kid": os.environ["ASC_API_KEY_ID"], "typ": "JWT"})
+          base = "https://api.appstoreconnect.apple.com"
+
+          def api(method, path, body=None):
+              data = json.dumps(body).encode("utf-8") if body is not None else None
+              req = urllib.request.Request(
+                  base + path, data=data, method=method,
+                  headers={"Authorization": "Bearer " + token,
+                           "Accept": "application/json",
+                           "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=35) as response:
+                      raw = response.read()
+                      return json.loads(raw) if raw else {}
+              except urllib.error.HTTPError as error:
+                  try:
+                      details = json.loads(error.read().decode("utf-8"))
+                      brief = "; ".join(
+                          str(x.get("code", "")) + ": " + str(x.get("detail", ""))[:260]
+                          for x in details.get("errors", [])[:2])
+                  except Exception:
+                      brief = "No structured Apple error details"
+                  raise RuntimeError(f"Apple API HTTP {error.code} ({method} {path.split('?')[0]}): {brief}") from None
+
+          group = api("GET", f"/v1/betaGroups/{group_id}")
+          g = group["data"]
+          if not g["attributes"].get("isInternalGroup", False):
+              raise SystemExit("The configured beta group is not internal; stopped without changes.")
+          related_app = g.get("relationships", {}).get("app", {}).get("data", {})
+          if related_app and related_app.get("id") != app_id:
+              raise SystemExit("Beta group belongs to another app; stopped without changes.")
+          print("Verified existing internal group:", g["attributes"].get("name", group_id))
+
+          params = urllib.parse.urlencode({"filter[app]": app_id, "sort": "-uploadedDate", "limit": 10})
+          latest = None
+          state = None
+          deadline = time.monotonic() + 300
+          while True:
+              builds = api("GET", "/v1/builds?" + params).get("data", [])
+              if not builds:
+                  print("Apple has no KUTANA build listed yet; awaiting processing.", flush=True)
+              else:
+                  latest = builds[0]
+                  attrs = latest.get("attributes", {})
+                  state = attrs.get("processingState", "")
+                  print("Latest KUTANA build:", latest["id"], "number:", attrs.get("version"),
+                        "processing:", state, flush=True)
+                  if state == "VALID":
+                      break
+                  if state in ("FAILED", "INVALID"):
+                      raise SystemExit(f"Apple has marked the latest build {state}; not adding it to testers.")
+              if time.monotonic() >= deadline:
+                  raise SystemExit("No processed KUTANA build available yet; rerun once Apple completes processing.")
+              time.sleep(40)
+
+          details = api("GET", "/v1/buildBetaDetails?" + urllib.parse.urlencode(
+              {"filter[build]": latest["id"], "limit": 10})).get("data", [])
+          if details:
+              internal_state = details[0].get("attributes", {}).get("internalBuildState", "")
+              print("TestFlight internal state:", internal_state)
+              if internal_state in ("MISSING_EXPORT_COMPLIANCE", "IN_EXPORT_COMPLIANCE_REVIEW", "PROCESSING_EXCEPTION", "EXPIRED"):
+                  raise SystemExit(f"Build requires Apple attention: {internal_state}. No invitation sent.")
+              if internal_state not in ("READY_FOR_BETA_TESTING", "IN_BETA_TESTING"):
+                  raise SystemExit(f"Build is not yet ready for internal testing: {internal_state}.")
+          else:
+              print("Apple has not returned beta details yet; will attempt group association for VALID build.")
+
+          assigned = api("GET", f"/v1/betaGroups/{group_id}/builds?limit=100").get("data", [])
+          if latest["id"] in {b["id"] for b in assigned}:
+              print("Latest build is already assigned to this internal tester group.")
+          else:
+              api("POST", f"/v1/betaGroups/{group_id}/relationships/builds",
+                  {"data": [{"type": "builds", "id": latest["id"]}]})
+              print("SUCCESS: latest processed KUTANA build assigned to internal group.")
+          print("The existing internal tester can now receive Apple's TestFlight invite.")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## KUTANA TestFlight internal tester\n")
+              summary.write(f"App: {app_id}; group: {g['attributes'].get('name', group_id)}\n")
+              summary.write(f"Build: {latest['attributes'].get('version')} (ID: {latest['id']})\n")
+              summary.write("Processed KUTANA build is assigned to the existing internal group. "
+                            "Apple controls the invitation delivery.\n")
+          PY
