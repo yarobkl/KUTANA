@@ -112,6 +112,10 @@ struct JobDetailView: View {
                     Task { await apply() }
                 }
                 .disabled(preview || !identity.authenticated || sending || sent || isMine)
+                if sent {
+                    Text("Pour joindre votre CV PDF à cette candidature, ouvrez Profil, puis Mes candidatures.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if preview || !identity.authenticated {
                     Text(preview ? "Offre fictive : candidature désactivée." : "Connectez-vous pour postuler.")
                         .font(.footnote).foregroundStyle(.secondary)
