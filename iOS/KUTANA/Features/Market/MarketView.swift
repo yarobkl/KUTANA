@@ -110,8 +110,12 @@ struct MarketView: View {
     }
 
     private func listingRow(_ item: ListingRecord) -> some View {
-        let url = item.listing_images?.first?.storage_path
-            .flatMap { identity.configuration?.publicListingImageURL(path: $0) }
+        let url: URL?
+        if let path = item.listing_images?.first?.storage_path {
+            url = identity.configuration?.publicListingImageURL(path: path)
+        } else {
+            url = nil
+        }
         return HStack(spacing: 14) {
             KutanaListingPhoto(url: url)
             VStack(alignment: .leading, spacing: 5) {
