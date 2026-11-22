@@ -26,6 +26,19 @@ struct BackendConfiguration: Sendable {
     }
 }
 
+extension BackendConfiguration {
+    func publicListingImageURL(path: String) -> URL? {
+        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 3,
+              UUID(uuidString: String(pieces[0])) != nil,
+              UUID(uuidString: String(pieces[1])) != nil,
+              pieces[2].hasSuffix(".jpg"),
+              UUID(uuidString: String(pieces[2].dropLast(4))) != nil else { return nil }
+        return configuration.endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
+    }
+
+}
+
 enum BackendError: Error {
     case notConfigured, notAuthenticated, invalidResponse, server(Int)
 }
@@ -222,16 +235,6 @@ actor KutanaAPI {
             URLQueryItem(name: "order", value: "sort_order.asc"),
             URLQueryItem(name: "limit", value: "5")
         ], accessToken: accessToken)
-    }
-
-    func publicListingImageURL(path: String) -> URL? {
-        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
-        guard pieces.count == 3,
-              UUID(uuidString: String(pieces[0])) != nil,
-              UUID(uuidString: String(pieces[1])) != nil,
-              pieces[2].hasSuffix(".jpg"),
-              UUID(uuidString: String(pieces[2].dropLast(4))) != nil else { return nil }
-        return configuration.endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
     }
 
     /// Metadata is added only after successful upload; the server checks owner,
