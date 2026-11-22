@@ -50,6 +50,33 @@ final class PublicationProtocol: URLProtocol {
         assert(mine.count == 1 && mine[0].status == "draft")
 
         PublicationProtocol.handler = { request in
+            assert(request.httpMethod == "GET")
+            assert(request.url?.path == "/rest/v1/rpc/received_applications")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            return (200, Data("""
+            [{"id":"\(id.uuidString.lowercased())","job_id":"\(id.uuidString.lowercased())",
+              "candidate_id":"\(owner.uuidString.lowercased())",
+              "status":"submitted","created_at":"2026-11-22T18:00:00+00:00",
+              "job_title":"Assistant commercial","company":"Entreprise",
+              "candidate_name":"Candidat Exemple"}]
+            """.utf8))
+        }
+        let received = try await api.receivedApplications(accessToken: "test-token")
+        assert(received.count == 1 && received[0].candidate_name == "Candidat Exemple")
+
+        PublicationProtocol.handler = { request in
+            assert(request.httpMethod == "POST")
+            assert(request.url?.path == "/rest/v1/rpc/change_application_status")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            let body = try! JSONSerialization.jsonObject(with: capturedRequestBody(request)!) as! [String:String]
+            assert(body["p_application"] == id.uuidString.lowercased())
+            assert(body["p_next"] == "shortlisted")
+            return (204, Data())
+        }
+        try await api.changeApplicationStatus(id: id, next: .shortlisted, accessToken: "test-token")
+
+
+        PublicationProtocol.handler = { request in
             assert(request.url?.path == "/rest/v1/rpc/publish_job")
             assert(request.httpMethod == "POST")
             assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
@@ -98,6 +125,6 @@ final class PublicationProtocol: URLProtocol {
             assertionFailure("A short report should be rejected")
         } catch BackendError.invalidResponse { /* expected */ }
 
-        print("KUTANA publication, owner filters, withdrawal, seller chat and report HTTP contract: OK")
+        print("KUTANA publication, recruiter applications, withdrawal, seller chat and report HTTP contract: OK")
     }
 }
