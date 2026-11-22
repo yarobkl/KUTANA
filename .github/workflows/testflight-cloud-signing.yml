@@ -87,6 +87,25 @@ jobs:
             MARKETING_VERSION='1.0.0' \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
 
+      - name: Validate orientations required by App Store Connect
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          plist_path = Path(os.environ["RUNNER_TEMP"]) / "KUTANA.xcarchive" / "Products/Applications/KUTANA.app/Info.plist"
+          with plist_path.open("rb") as source:
+              info = plistlib.load(source)
+          expected = {"UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"}
+          values = info.get("UISupportedInterfaceOrientations", [])
+          print("Base orientations:", values)
+          print("iPhone orientations:", info.get("UISupportedInterfaceOrientations~iphone", []))
+          print("iPad orientations:", info.get("UISupportedInterfaceOrientations~ipad", []))
+          if not isinstance(values, list) or not expected.issubset(set(values)):
+              raise SystemExit("App Store Connect requires all four base orientations for iPad multitasking.")
+          PY
+
       - name: Export and upload to App Store Connect
         shell: bash
         run: |
