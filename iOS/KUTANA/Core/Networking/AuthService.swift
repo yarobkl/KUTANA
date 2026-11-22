@@ -89,7 +89,7 @@ actor KutanaAuthService {
         let providers = settings?["external"] as? [String: Any]
         if (providers?[name] as? Bool) == false {
             let label = name == "apple" ? "Apple" : "Google"
-            throw AuthFailure.remoteMessage("Connexion \\(label) indisponible : ce service n’est pas encore activé sur KUTANA.")
+            throw AuthFailure.remoteMessage("Connexion \(label) indisponible : ce service n’est pas encore activé sur KUTANA.")
         }
     }
 
