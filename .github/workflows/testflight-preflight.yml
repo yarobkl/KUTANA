@@ -1,0 +1,94 @@
+name: KUTANA TestFlight preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - project.yml
+      - 'iOS/**'
+      - '.github/workflows/testflight.yml'
+      - '.github/workflows/testflight-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apple-preflight:
+    name: Verify Xcode 26 and device archive before signing
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Check out KUTANA only
+        uses: actions/checkout@v4
+
+      - name: Verify Apple build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          XCODE_MAJOR="$(xcodebuild -version | awk '/^Xcode / {split($2, v, "."); print v[1]}')"
+          test -n "$XCODE_MAJOR" && test "$XCODE_MAJOR" -ge 26
+
+      - name: Generate KUTANA Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen generate
+          test -d KUTANA.xcodeproj
+
+      - name: Inspect distribution configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project KUTANA.xcodeproj -scheme KUTANA -configuration Release -sdk iphoneos -showBuildSettings -json > "$RUNNER_TEMP/kutana-build-settings.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path(os.environ["RUNNER_TEMP"], "kutana-build-settings.json").read_text())
+          matches = [entry["buildSettings"] for entry in data if entry.get("target") == "KUTANA"]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one KUTANA target")
+          settings = matches[0]
+          expected = "fr.yaroconsulting.kutana"
+          actual = settings.get("PRODUCT_BUNDLE_IDENTIFIER")
+          if actual != expected:
+              raise SystemExit(f"Bundle ID mismatch: expected {expected}; got {actual}")
+          if settings.get("SDKROOT") != "iphoneos":
+              raise SystemExit("Not an iPhone device build")
+          print(f"Validated target KUTANA / bundle {expected} / SDK iphoneos")
+          PY
+
+      - name: Verify unsigned Release archive compiles on Xcode 26
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          xcodebuild archive \
+            -project KUTANA.xcodeproj \
+            -scheme KUTANA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/KUTANA-Preflight.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/kutana-testflight-preflight.log"
+          test -d "$RUNNER_TEMP/KUTANA-Preflight.xcarchive/Products/Applications/KUTANA.app"
+
+      - name: Verify archive bundle identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/KUTANA-Preflight.xcarchive/Products/Applications/KUTANA.app"
+          BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          test "$BUNDLE" = 'fr.yaroconsulting.kutana'
+
+      - name: Preserve non-secret diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUTANA-TestFlight-preflight-diagnostics
+          path: ${{ runner.temp }}/kutana-testflight-preflight.log
+          if-no-files-found: warn
+          retention-days: 7
