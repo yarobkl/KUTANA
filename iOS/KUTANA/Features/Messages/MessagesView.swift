@@ -61,6 +61,7 @@ struct KutanaChatView: View {
     @State private var draft = ""
     @State private var loading = false
     @State private var sending = false
+    @State private var sentCount = 0
     @State private var errorMessage: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -121,7 +122,7 @@ struct KutanaChatView: View {
                 }
                 .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel("Envoyer le message")
-                .sensoryFeedback(.success, trigger: messages.count)
+                .sensoryFeedback(.success, trigger: sentCount)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
@@ -171,6 +172,7 @@ struct KutanaChatView: View {
             _ = try await KutanaAPI(configuration: configuration)
                 .sendMessage(conversationID: conversationID, text: body, accessToken: token)
             draft = ""
+            sentCount += 1
             await load()
         } catch {
             errorMessage = "Envoi impossible. Vérifiez la connexion et réessayez."
