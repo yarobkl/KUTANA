@@ -214,6 +214,51 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+
+    func listingImages(listingID: UUID, accessToken: String? = nil) async throws -> [ListingImageRecord] {
+        try await get("listing_images", query: [
+            URLQueryItem(name: "select", value: "id,listing_id,storage_path,sort_order"),
+            URLQueryItem(name: "listing_id", value: "eq.\(listingID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "sort_order.asc"),
+            URLQueryItem(name: "limit", value: "5")
+        ], accessToken: accessToken)
+    }
+
+    func publicListingImageURL(path: String) -> URL? {
+        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 3,
+              UUID(uuidString: String(pieces[0])) != nil,
+              UUID(uuidString: String(pieces[1])) != nil,
+              pieces[2].hasSuffix(".jpg"),
+              UUID(uuidString: String(pieces[2].dropLast(4))) != nil else { return nil }
+        return configuration.endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
+    }
+
+    /// Metadata is added only after successful upload; the server checks owner,
+    /// unpublished status, actual storage object and per-listing photo quota.
+    func uploadListingImage(_ jpeg: Data, listingID: UUID, ownerID: UUID,
+                            accessToken: String) async throws -> UUID {
+        guard (1...5_242_880).contains(jpeg.count), !accessToken.isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let path = "\(ownerID.uuidString.lowercased())/\(listingID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+        let url = configuration.endpoint.appending(path: "storage/v1/object/kutana-listing-images/\(path)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 35
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue("false", forHTTPHeaderField: "x-upsert")
+        request.httpBody = jpeg
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try await rpc(name: "attach_listing_image", body: [
+            "p_listing": listingID.uuidString.lowercased(), "p_path": path
+        ], accessToken: accessToken)
+    }
+
     private func rpc<T: Encodable>(name: String, body: T, accessToken: String) async throws -> UUID {
         guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
         let url = configuration.endpoint.appending(path: "rest/v1/rpc/\(name)")
