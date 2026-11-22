@@ -2,6 +2,10 @@ name: KUTANA TestFlight (Apple cloud signing)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ci/trigger-kutana-testflight.txt'
 
 permissions:
   contents: read
