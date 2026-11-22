@@ -57,4 +57,6 @@ jobs:
                   summary.write(f"- {provider.title()}: {'Enabled' if state is True else ('Disabled' if state is False else 'Could not determine')}\n")
               summary.write("\nGoogle also requires an OAuth client and `kutana://auth/callback` in the Supabase redirect allowlist.\n")
               summary.write("Apple native sign-in requires the App ID Sign in with Apple capability and native bundle ID in its provider configuration.\n")
+          if enabled.get("apple") is not True or enabled.get("google") is not True:
+              raise SystemExit("KUTANA social login not ready: both Apple and Google must be enabled in Supabase Auth before claiming functional login.")
           PY
