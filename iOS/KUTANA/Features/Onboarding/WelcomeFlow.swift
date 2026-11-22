@@ -1,5 +1,6 @@
 import SwiftUI
 import AuthenticationServices
+import UIKit
 
 // KUTANA only. This flow is deliberately independent of all other Yaro products.
 private enum WelcomePage: Hashable { case introduction, login, registration, reset }
@@ -103,13 +104,16 @@ private struct KutanaSplashView: View {
     @State private var logoScale: CGFloat = 0.82
     @State private var textOpacity = 0.0
     @State private var textOffset: CGFloat = 14
+    @State private var wavePhase: CGFloat = 0
+    @State private var rippleScale: CGFloat = 0.7
+    @State private var rippleOpacity = 0.0
 
     var body: some View {
         GeometryReader { proxy in
             let side = min(110.0, max(88.0, proxy.size.width * 0.28))
             ZStack {
                 Color.white.ignoresSafeArea()
-                BottomWaveShape()
+                BottomWaveShape(phase: wavePhase)
                     .fill(LinearGradient(
                         colors: [KutanaTheme.blue, Color(red: 0.02, green: 0.25, blue: 0.85)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
@@ -119,14 +123,21 @@ private struct KutanaSplashView: View {
                     .ignoresSafeArea(edges: .bottom)
 
                 VStack(spacing: 19) {
-                    Image("kutana_mark")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: side, height: side)
-                        .clipShape(RoundedRectangle(cornerRadius: side * 0.23, style: .continuous))
-                        .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
-                        .offset(y: logoOffset)
-                        .scaleEffect(logoScale)
+                    ZStack {
+                        Circle()
+                            .stroke(KutanaTheme.blue.opacity(rippleOpacity), lineWidth: 2)
+                            .frame(width: side * 1.25, height: side * 1.25)
+                            .scaleEffect(rippleScale)
+                        Image("kutana_mark")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: side, height: side)
+                            .clipShape(RoundedRectangle(cornerRadius: side * 0.23, style: .continuous))
+                            .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
+                            .offset(y: logoOffset)
+                            .scaleEffect(logoScale)
+                    }
+                    .frame(width: side, height: side)
 
                     VStack(spacing: 8) {
                         Text("KUTANA")
@@ -159,13 +170,22 @@ private struct KutanaSplashView: View {
                     logoOffset = 0
                     logoScale = 1
                 }
-                try? await Task.sleep(for: .milliseconds(420))
+                try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+                rippleOpacity = 0.48
+                withAnimation(.easeOut(duration: 0.72)) {
+                    rippleScale = 2.1
+                    rippleOpacity = 0
+                }
+                withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) {
+                    wavePhase = .pi * 2
+                }
                 withAnimation(.easeOut(duration: 0.45)) {
                     textOpacity = 1
                     textOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(1430))
+                try? await Task.sleep(for: .milliseconds(1400))
             }
             guard !Task.isCancelled else { return }
             onFinished()
@@ -176,12 +196,18 @@ private struct KutanaSplashView: View {
 }
 
 private struct BottomWaveShape: Shape {
+    var phase: CGFloat = 0
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
     func path(in rect: CGRect) -> Path {
         var path = Path()
+        let lift = sin(phase) * rect.height * 0.035
         path.move(to: CGPoint(x: 0, y: rect.height))
-        path.addCurve(to: CGPoint(x: rect.width, y: rect.height * 0.15),
-                      control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85),
-                      control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1))
+        path.addCurve(to: CGPoint(x: rect.width, y: rect.height * 0.15 + lift),
+                      control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85 - lift),
+                      control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1 + lift))
         path.addLine(to: CGPoint(x: rect.width, y: rect.height))
         path.closeSubpath()
         return path

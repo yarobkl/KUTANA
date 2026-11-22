@@ -122,6 +122,8 @@ struct JobDetailView: View {
     @State private var sent = false
     @State private var showReport = false
     @State private var errorMessage: String?
+    @State private var favorite = false
+    @State private var favoriteBusy = false
 
     var body: some View {
         ScrollView {
@@ -133,6 +135,15 @@ struct JobDetailView: View {
                 Divider()
                 Text("Description du poste").font(.title2.bold())
                 Text(job.description)
+                if identity.authenticated && !isMine && !preview {
+                    Button {
+                        Task { await toggleFavorite() }
+                    } label: {
+                        Label(favorite ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: favorite ? "bookmark.fill" : "bookmark")
+                    }.disabled(favoriteBusy)
+                    Text("Un favori crée aussi une alerte pour des offres similaires dans cette ville. Vous pouvez l'ajuster dans Profil.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if sent { Label("Candidature envoyée", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 KutanaPrimaryButton(title: sending ? "Envoi en cours…" : "Postuler à cette offre") {
@@ -160,6 +171,33 @@ struct JobDetailView: View {
             ReportContentSheet(kind: "job", contentID: job.id)
                 .environmentObject(identity)
         }
+        .task { await loadFavorite() }
+    }
+
+    @MainActor private func loadFavorite() async {
+        guard identity.authenticated, !preview, let config = identity.configuration,
+              let token = await identity.freshAccessToken() else { return }
+        do { favorite = try await KutanaAPI(configuration: config).favorites(accessToken: token).contains { $0.job_id == job.id } }
+        catch { errorMessage = "Impossible de charger les favoris." }
+    }
+
+    @MainActor private func toggleFavorite() async {
+        guard let config = identity.configuration, let token = await identity.freshAccessToken(),
+              let userID = AccessTokenMetadata.subject(token) else { return }
+        favoriteBusy = true
+        defer { favoriteBusy = false }
+        do {
+            let api = KutanaAPI(configuration: config)
+            if favorite { try await api.removeFavorite(jobID: job.id, accessToken: token) }
+            else {
+                try await api.addFavorite(jobID: job.id, userID: userID, accessToken: token)
+                let terms = job.title.split(separator: " ").prefix(2).joined(separator: " ")
+                if terms.count >= 2 {
+                    try await api.addAlert(keyword: terms, city: job.city, userID: userID, accessToken: token)
+                }
+            }
+            favorite.toggle(); errorMessage = nil
+        } catch { errorMessage = "Impossible de modifier les favoris." }
     }
 
     private var isMine: Bool {

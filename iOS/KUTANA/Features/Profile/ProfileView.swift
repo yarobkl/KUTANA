@@ -6,10 +6,20 @@ struct ProfileView: View {
         NavigationStack {
             List {
                 Section("Compte") {
-                    Label("Compte connecté", systemImage: "envelope.badge.shield.half.filled")
-                    Label("Profil candidat et recruteur", systemImage: "person.crop.circle")
+                    NavigationLink { KutanaAccountView() } label: {
+                        Label("Compte connecté", systemImage: "envelope.badge.shield.half.filled")
+                    }
+                    NavigationLink { NotificationsView() } label: {
+                        Label("Notifications", systemImage: "bell")
+                    }
+                    NavigationLink { NotificationSettingsView() } label: {
+                        Label("Réglages des notifications", systemImage: "slider.horizontal.3")
+                    }
                 }
                 Section("Emploi") {
+                    NavigationLink { JobAlertsView() } label: {
+                        Label("Alertes emploi", systemImage: "bell.badge")
+                    }
                     NavigationLink { ApplicationsView() } label: {
                         Label("Mes candidatures", systemImage: "doc.text")
                     }

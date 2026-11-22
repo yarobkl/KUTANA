@@ -79,6 +79,79 @@ actor KutanaAPI {
         ])
     }
 
+    func notifications(accessToken: String) async throws -> [KutanaNotification] {
+        try await get("notifications", query: [
+            URLQueryItem(name: "select", value: "id,kind,title,body,reference_id,created_at,read_at"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
+    func favorites(accessToken: String) async throws -> [JobFavorite] {
+        try await get("job_favorites", query: [URLQueryItem(name: "select", value: "job_id")], accessToken: accessToken)
+    }
+
+    func alerts(accessToken: String) async throws -> [JobAlert] {
+        try await get("job_alerts", query: [URLQueryItem(name: "select", value: "id,keyword,city"), URLQueryItem(name: "order", value: "created_at.desc")], accessToken: accessToken)
+    }
+
+    func preferences(accessToken: String) async throws -> NotificationPreference {
+        let rows: [NotificationPreference] = try await get("notification_preferences", query: [
+            URLQueryItem(name: "select", value: "messages_enabled,jobs_enabled"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return rows.first ?? NotificationPreference(messages_enabled: true, jobs_enabled: true)
+    }
+
+    func savePreference(messages: Bool, jobs: Bool, userID: UUID, accessToken: String) async throws {
+        try await write("notification_preferences", method: "POST", query: [URLQueryItem(name: "on_conflict", value: "user_id")],
+                        body: ["user_id": userID.uuidString.lowercased(), "messages_enabled": messages, "jobs_enabled": jobs],
+                        accessToken: accessToken, prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
+    func addFavorite(jobID: UUID, userID: UUID, accessToken: String) async throws {
+        try await write("job_favorites", method: "POST", body: ["job_id": jobID.uuidString.lowercased(), "user_id": userID.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func removeFavorite(jobID: UUID, accessToken: String) async throws {
+        try await write("job_favorites", method: "DELETE", query: [URLQueryItem(name: "job_id", value: "eq.\(jobID.uuidString.lowercased())")], accessToken: accessToken)
+    }
+
+    func addAlert(keyword: String, city: String, userID: UUID, accessToken: String) async throws {
+        try await write("job_alerts", method: "POST", query: [URLQueryItem(name: "on_conflict", value: "user_id,keyword,city")], body: ["keyword": keyword, "city": city, "user_id": userID.uuidString.lowercased()], accessToken: accessToken, prefer: "resolution=ignore-duplicates,return=minimal")
+    }
+
+    func removeAlert(id: UUID, accessToken: String) async throws {
+        try await write("job_alerts", method: "DELETE", query: [URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())")], accessToken: accessToken)
+    }
+
+    func markNotificationRead(id: UUID, accessToken: String) async throws {
+        try await write("notifications", method: "PATCH", query: [URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())")],
+                        body: ["read_at": ISO8601DateFormatter().string(from: Date())], accessToken: accessToken)
+    }
+
+    private func write(_ table: String, method: String, query: [URLQueryItem] = [],
+                                     body: [String: Any]? = nil, accessToken: String,
+                                     prefer: String = "return=minimal") async throws {
+        guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
+        var components = URLComponents(url: configuration.endpoint.appending(path: "rest/v1/\(table)"), resolvingAgainstBaseURL: false)!
+        components.queryItems = query.isEmpty ? nil : query
+        guard let url = components.url else { throw BackendError.invalidResponse }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(prefer, forHTTPHeaderField: "Prefer")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw BackendError.invalidResponse
+        }
+    }
+
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {
         try await get("listings", query: [
             URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,listing_images(storage_path)"),

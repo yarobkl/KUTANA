@@ -4,17 +4,37 @@ import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection = 0
+    @State private var unreadNotifications = 0
     var body: some View {
         TabView(selection: $selection) {
             JobsView().tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
             MarketView().tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
             PublishView().tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
             MessagesView().tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }.tag(3)
-            ProfileView().tabItem { Label("Profil", systemImage: "person.crop.circle") }.tag(4)
+            ProfileView().tabItem { Label("Profil", systemImage: "person.crop.circle") }
+                .badge(unreadNotifications).tag(4)
         }
         .tint(KutanaTheme.blue)
         .sensoryFeedback(.selection, trigger: selection)
+        .task {
+            while !Task.isCancelled {
+                if scenePhase == .active { await refreshUnread() }
+                try? await Task.sleep(for: .seconds(25))
+            }
+        }
+        .onChange(of: selection) { _, _ in Task { await refreshUnread() } }
+    }
+
+    @MainActor private func refreshUnread() async {
+        guard identity.authenticated, let config = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            unreadNotifications = 0; return
+        }
+        if let items = try? await KutanaAPI(configuration: config).notifications(accessToken: token) {
+            unreadNotifications = items.filter { $0.read_at == nil }.count
+        }
     }
 }
 

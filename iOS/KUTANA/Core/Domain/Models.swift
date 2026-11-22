@@ -82,6 +82,27 @@ struct MessageRecord: Identifiable, Codable, Sendable {
     let created_at: Date
 }
 
+struct KutanaNotification: Identifiable, Codable, Sendable {
+    let id: UUID
+    let kind: String
+    let title: String
+    let body: String
+    let reference_id: UUID
+    let created_at: Date
+    let read_at: Date?
+}
+
+struct JobFavorite: Codable, Sendable { let job_id: UUID }
+struct JobAlert: Identifiable, Codable, Sendable {
+    let id: UUID
+    let keyword: String
+    let city: String
+}
+struct NotificationPreference: Codable, Sendable {
+    let messages_enabled: Bool
+    let jobs_enabled: Bool
+}
+
 struct ApplicationJobInfo: Codable, Sendable {
     let title: String
     let company: String
