@@ -72,6 +72,9 @@ struct JobsView: View {
             }}
             .navigationTitle("KUTANA")
             .task { await load() }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
+                Task { await load() }
+            }
         }
     }
 
@@ -90,6 +93,7 @@ struct JobDetailView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var sending = false
     @State private var sent = false
+    @State private var showReport = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -107,13 +111,30 @@ struct JobDetailView: View {
                 KutanaPrimaryButton(title: sending ? "Envoi en cours…" : "Postuler à cette offre") {
                     Task { await apply() }
                 }
-                .disabled(preview || !identity.authenticated || sending || sent)
+                .disabled(preview || !identity.authenticated || sending || sent || isMine)
                 if preview || !identity.authenticated {
                     Text(preview ? "Offre fictive : candidature désactivée." : "Connectez-vous pour postuler.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }.padding(20)
-        }.navigationBarTitleDisplayMode(.inline)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Signaler", systemImage: "flag") { showReport = true }
+                    .disabled(preview || !identity.authenticated || isMine)
+            }
+        }
+        .sheet(isPresented: $showReport) {
+            ReportContentSheet(kind: "job", contentID: job.id)
+                .environmentObject(identity)
+        }
+    }
+
+    private var isMine: Bool {
+        guard let token = identity.active?.token.access_token,
+              let ownID = AccessTokenMetadata.subject(token) else { return false }
+        return job.author_id == ownID
     }
 
     @MainActor private func apply() async {
