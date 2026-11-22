@@ -14,6 +14,7 @@ struct RootView: View {
             ProfileView().tabItem { Label("Profil", systemImage: "person.crop.circle") }.tag(4)
         }
         .tint(KutanaTheme.blue)
+        .sensoryFeedback(.selection, trigger: selection)
     }
 }
 

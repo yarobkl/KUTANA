@@ -5,6 +5,7 @@ struct JobsView: View {
     @State private var query = ""
     @State private var records: [JobRecord] = []
     @State private var loading = false
+    @State private var hasLoaded = false
     @State private var errorMessage: String?
 
     private var isPreview: Bool { identity.configuration == nil }
@@ -41,26 +42,52 @@ struct JobsView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                if loading { Section { ProgressView("Chargement des offres…") } }
+                if loading && !hasLoaded {
+                    Section("Offres récentes") {
+                        ForEach(0..<4, id: \.self) { _ in KutanaLoadingRow() }
+                    }
+                }
                 if let errorMessage {
                     Section { Text(errorMessage).foregroundStyle(.red).font(.footnote) }
                 }
+                if !loading || hasLoaded || isPreview {
                 Section(isPreview ? "Offres de démonstration" : "Offres récentes") {
                     ForEach(visible) { job in
                         NavigationLink {
                             JobDetailView(job: job, preview: isPreview)
                         } label: {
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text(job.title).font(.headline)
-                                Text(job.company).font(.subheadline)
-                                Label("\(job.city) · \(job.contract_type)", systemImage: "mappin")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }.padding(.vertical, 6)
+                            HStack(alignment: .top, spacing: 14) {
+                                Image(systemName: "building.2.crop.circle")
+                                    .font(.system(size: 25, weight: .light))
+                                    .foregroundStyle(KutanaTheme.blue)
+                                    .frame(width: 48, height: 48)
+                                    .background(Color(.secondarySystemGroupedBackground),
+                                                in: RoundedRectangle(cornerRadius: 13))
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 7) {
+                                    Text(job.title)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                    Text(job.company)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 8) {
+                                        Label(job.city, systemImage: "mappin")
+                                        Text(job.contract_type)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(KutanaTheme.blue)
+                                }
+                            }
+                            .padding(.vertical, 9)
                         }
                     }
-                    if visible.isEmpty && !loading {
+                    if visible.isEmpty && !loading && hasLoaded {
                         ContentUnavailableView.search(text: query)
                     }
+                }
                 }
             }
             .listStyle(.insetGrouped)
@@ -81,7 +108,7 @@ struct JobsView: View {
     @MainActor private func load() async {
         guard let configuration = identity.configuration else { return }
         loading = true; errorMessage = nil
-        defer { loading = false }
+        defer { loading = false; hasLoaded = true }
         do { records = try await KutanaAPI(configuration: configuration).publishedJobs() }
         catch { errorMessage = "Impossible de charger les offres. Réessayez." }
     }

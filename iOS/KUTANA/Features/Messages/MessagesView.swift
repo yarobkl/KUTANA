@@ -61,7 +61,9 @@ struct KutanaChatView: View {
     @State private var draft = ""
     @State private var loading = false
     @State private var sending = false
+    @State private var sentCount = 0
     @State private var errorMessage: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,7 +98,11 @@ struct KutanaChatView: View {
                 .refreshable { await load() }
                 .onChange(of: messages.count) { _, _ in
                     if let last = messages.last?.id {
-                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                        if reduceMotion {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        } else {
+                            withAnimation(KutanaMotion.reveal) { proxy.scrollTo(last, anchor: .bottom) }
+                        }
                     }
                 }
             }
@@ -116,6 +122,7 @@ struct KutanaChatView: View {
                 }
                 .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel("Envoyer le message")
+                .sensoryFeedback(.success, trigger: sentCount)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
@@ -165,6 +172,7 @@ struct KutanaChatView: View {
             _ = try await KutanaAPI(configuration: configuration)
                 .sendMessage(conversationID: conversationID, text: body, accessToken: token)
             draft = ""
+            sentCount += 1
             await load()
         } catch {
             errorMessage = "Envoi impossible. Vérifiez la connexion et réessayez."
