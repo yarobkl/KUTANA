@@ -1,7 +1,7 @@
 name: KUTANA iOS build
 on:
   push:
-    branches: [main]
+    branches: [main, feature/native-premium-motion-20261122]
   pull_request:
   workflow_dispatch:
 permissions:
