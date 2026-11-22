@@ -40,12 +40,25 @@ struct MarketView: View {
                         NavigationLink {
                             ListingDetailView(item: item)
                         } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(item.title).font(.headline)
-                                Text(KutanaFormat.xaf(item.price_xaf))
-                                    .font(.headline).foregroundStyle(KutanaTheme.blue)
-                                Label("\(item.city) · \(item.category)", systemImage: "mappin")
-                                    .font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 14) {
+                                if let path = item.listing_images?.first?.storage_path,
+                                   let url = identity.configuration?.publicListingImageURL(path: path) {
+                                    AsyncImage(url: url) { photo in
+                                        photo.resizable().scaledToFill()
+                                    } placeholder: {
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color(.secondarySystemBackground))
+                                    }
+                                    .frame(width: 84, height: 84)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(item.title).font(.headline)
+                                    Text(KutanaFormat.xaf(item.price_xaf))
+                                        .font(.headline).foregroundStyle(KutanaTheme.blue)
+                                    Label("\(item.city) · \(item.category)", systemImage: "mappin")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }.padding(.vertical, 5)
                         }
                     }
@@ -82,10 +95,28 @@ private struct ListingDetailView: View {
     @State private var conversationID: UUID?
     @State private var errorMessage: String?
     @State private var showReport = false
+    @State private var photos: [ListingImageRecord] = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if !photos.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 10) {
+                            ForEach(photos) { photo in
+                                if let url = identity.configuration?.publicListingImageURL(path: photo.storage_path) {
+                                    AsyncImage(url: url) { picture in
+                                        picture.resizable().scaledToFill()
+                                    } placeholder: {
+                                        ProgressView()
+                                    }
+                                    .frame(width: 285, height: 225)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                }
+                            }
+                        }
+                    }
+                }
                 Text(item.title).font(.largeTitle.bold())
                 Text(KutanaFormat.xaf(item.price_xaf))
                     .font(.title2.bold()).foregroundStyle(KutanaTheme.blue)
@@ -116,6 +147,7 @@ private struct ListingDetailView: View {
                 KutanaChatView(conversationID: conversationID)
             }
         }
+        .task { await loadPhotos() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Signaler", systemImage: "flag") { showReport = true }
@@ -125,6 +157,16 @@ private struct ListingDetailView: View {
         .sheet(isPresented: $showReport) {
             ReportContentSheet(kind: "listing", contentID: item.id)
                 .environmentObject(identity)
+        }
+    }
+
+
+    @MainActor private func loadPhotos() async {
+        guard let configuration = identity.configuration else { return }
+        do {
+            photos = try await KutanaAPI(configuration: configuration).listingImages(listingID: item.id)
+        } catch {
+            // The text-only listing remains usable if images temporarily fail.
         }
     }
 
