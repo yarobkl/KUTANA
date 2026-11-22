@@ -62,6 +62,7 @@ struct KutanaChatView: View {
     @State private var loading = false
     @State private var sending = false
     @State private var errorMessage: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,7 +97,11 @@ struct KutanaChatView: View {
                 .refreshable { await load() }
                 .onChange(of: messages.count) { _, _ in
                     if let last = messages.last?.id {
-                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                        if reduceMotion {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        } else {
+                            withAnimation(KutanaMotion.reveal) { proxy.scrollTo(last, anchor: .bottom) }
+                        }
                     }
                 }
             }
@@ -116,6 +121,7 @@ struct KutanaChatView: View {
                 }
                 .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel("Envoyer le message")
+                .sensoryFeedback(.success, trigger: messages.count)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
