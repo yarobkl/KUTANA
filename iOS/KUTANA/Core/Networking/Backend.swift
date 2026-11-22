@@ -87,6 +87,13 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+    func submitProblem(details: String, appVersion: String, accessToken: String) async throws -> UUID {
+        try await rpc(name: "submit_problem_report", body: [
+            "p_details": details,
+            "p_app_version": appVersion
+        ], accessToken: accessToken)
+    }
+
     func favorites(accessToken: String) async throws -> [JobFavorite] {
         try await get("job_favorites", query: [URLQueryItem(name: "select", value: "job_id")], accessToken: accessToken)
     }

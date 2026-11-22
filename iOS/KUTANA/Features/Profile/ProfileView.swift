@@ -35,6 +35,11 @@ struct ProfileView: View {
                         Label("Mes annonces", systemImage: "tag")
                     }
                 }
+                Section("Aide") {
+                    NavigationLink { ProblemReportView() } label: {
+                        Label("Signaler un problème", systemImage: "exclamationmark.bubble")
+                    }
+                }
                 Section {
                     Button("Se déconnecter", role: .destructive) { identity.signOut() }
                 }

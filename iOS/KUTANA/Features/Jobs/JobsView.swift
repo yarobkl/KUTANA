@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct JobsView: View {
+    let unreadCount: Int
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var query = ""
     @State private var records: [JobRecord] = []
@@ -30,12 +31,13 @@ struct JobsView: View {
         NavigationStack {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Trouvez votre prochain emploi au Congo")
-                            .font(.largeTitle.bold()).foregroundStyle(KutanaTheme.ink)
-                        Text("Des opportunités près de vous").foregroundStyle(.secondary)
-                    }.padding(.vertical, 8)
+                    KutanaFeatureHero(eyebrow: "Emploi au Congo",
+                                      title: "Votre prochain élan commence ici.",
+                                      subtitle: "Explorez les offres et suivez les métiers qui vous intéressent.",
+                                      symbol: "arrow.up.right")
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                 if isPreview {
                     Section {
                         Label("Aperçu de maquette · aucune de ces offres n'est réelle", systemImage: "info.circle")
@@ -93,10 +95,16 @@ struct JobsView: View {
             .listStyle(.insetGrouped)
             .searchable(text: $query, prompt: "Métier, entreprise, ville…")
             .refreshable { await load() }
-            .toolbar { ToolbarItem(placement: .topBarTrailing) {
-                Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(isPreview || loading).accessibilityLabel("Actualiser les offres")
-            }}
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
+                        .disabled(isPreview || loading).accessibilityLabel("Actualiser les offres")
+                    NavigationLink { NotificationsView() } label: {
+                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    }
+                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                }
+            }
             .navigationTitle("KUTANA")
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
@@ -150,6 +158,10 @@ struct JobDetailView: View {
                     Task { await apply() }
                 }
                 .disabled(preview || !identity.authenticated || sending || sent || isMine)
+                if isMine {
+                    Text("C'est votre offre : vous ne pouvez pas y postuler. Un autre compte candidat peut le faire.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if sent {
                     Text("Pour joindre votre CV PDF à cette candidature, ouvrez Profil, puis Mes candidatures.")
                         .font(.footnote).foregroundStyle(.secondary)

@@ -1,19 +1,30 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import UserNotifications
 
 struct RootView: View {
+    var allowNotificationPrompt = false
     @EnvironmentObject private var identity: KutanaSessionStore
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("kutana.notificationPromptSeen") private var notificationPromptSeen = false
     @State private var selection = 0
     @State private var unreadNotifications = 0
+    @State private var showingNotificationPrompt = false
+    @State private var knownNotificationIDs: Set<UUID> = []
+    @State private var hasNotificationSnapshot = false
     var body: some View {
         TabView(selection: $selection) {
-            JobsView().tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
-            MarketView().tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
-            PublishView().tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
-            MessagesView().tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }.tag(3)
-            ProfileView().tabItem { Label("Profil", systemImage: "person.crop.circle") }
+            JobsView(unreadCount: unreadNotifications).modifier(KutanaTabEntrance())
+                .tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
+            MarketView().modifier(KutanaTabEntrance())
+                .tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
+            PublishView().modifier(KutanaTabEntrance())
+                .tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
+            MessagesView().modifier(KutanaTabEntrance())
+                .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }.tag(3)
+            ProfileView().modifier(KutanaTabEntrance())
+                .tabItem { Label("Profil", systemImage: "person.crop.circle") }
                 .badge(unreadNotifications).tag(4)
         }
         .tint(KutanaTheme.blue)
@@ -25,6 +36,23 @@ struct RootView: View {
             }
         }
         .onChange(of: selection) { _, _ in Task { await refreshUnread() } }
+        .onAppear { offerNotificationPrompt() }
+        .onChange(of: allowNotificationPrompt) { _, _ in offerNotificationPrompt() }
+        .alert("Rester informé sur KUTANA ?", isPresented: $showingNotificationPrompt) {
+            Button("Activer") {
+                notificationPromptSeen = true
+                Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) }
+            }
+            Button("Plus tard", role: .cancel) { notificationPromptSeen = true }
+        } message: {
+            Text("Recevez une alerte quand de nouveaux messages ou des offres suivies arrivent pendant que l'application est ouverte. Vous pourrez modifier ce choix dans les réglages iPhone.")
+        }
+    }
+
+    private func offerNotificationPrompt() {
+        if allowNotificationPrompt && identity.authenticated && !notificationPromptSeen {
+            showingNotificationPrompt = true
+        }
     }
 
     @MainActor private func refreshUnread() async {
@@ -34,7 +62,23 @@ struct RootView: View {
         }
         if let items = try? await KutanaAPI(configuration: config).notifications(accessToken: token) {
             unreadNotifications = items.filter { $0.read_at == nil }.count
+            let newItems = hasNotificationSnapshot ? items.filter { !knownNotificationIDs.contains($0.id) } : []
+            knownNotificationIDs = Set(items.map(\.id))
+            hasNotificationSnapshot = true
+            for item in newItems.prefix(3) { await presentLocalNotification(item) }
         }
+    }
+
+    private func presentLocalNotification(_ item: KutanaNotification) async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = item.title
+        content.body = item.body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: item.id.uuidString, content: content, trigger: nil)
+        try? await center.add(request)
     }
 }
 
@@ -43,9 +87,13 @@ struct PublishView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Préparez une offre ou une annonce, ajoutez des photos si nécessaire, puis mettez-la en ligne. Vos brouillons restent privés jusqu'à votre décision.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    KutanaFeatureHero(eyebrow: "Publier sur KUTANA",
+                                      title: "Une idée, une offre, une rencontre.",
+                                      subtitle: "Préparez votre publication, puis partagez-la quand elle est prête.",
+                                      symbol: "plus")
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                 Section {
                     NavigationLink {
                         MyPublicationsView()

@@ -40,13 +40,13 @@ struct MarketView: View {
 
     private var introduction: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Achetez et vendez au Congo").font(.title.bold())
-                Text("Prix en FCFA · Contact direct · Aucun paiement dans l’app")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
+            KutanaFeatureHero(eyebrow: "Annonces",
+                              title: "Les bonnes trouvailles sont près de vous.",
+                              subtitle: "Achetez, vendez et échangez directement au Congo.",
+                              symbol: "tag")
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
     }
 
     private var categorySection: some View {
