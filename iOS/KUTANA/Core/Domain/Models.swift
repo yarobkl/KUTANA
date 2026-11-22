@@ -67,6 +67,17 @@ struct ApplicationJobInfo: Codable, Sendable {
     let company: String
 }
 
+
+/// Recruiter-facing application; candidate contact details are not exposed.
+struct RecruiterApplication: Identifiable, Codable, Sendable {
+    let id: UUID
+    let job_id: UUID
+    let candidate_id: UUID
+    let status: ApplicationState
+    let created_at: Date
+    let jobs: ApplicationJobInfo?
+}
+
 struct ApplicationWithJob: Identifiable, Codable, Sendable {
     let id: UUID
     let job_id: UUID
