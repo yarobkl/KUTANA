@@ -8,7 +8,6 @@ settings:
     SWIFT_VERSION: '5.9'
     TARGETED_DEVICE_FAMILY: '1'
     CODE_SIGN_STYLE: Automatic
-    GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -21,6 +20,27 @@ targets:
     platform: iOS
     sources:
       - path: iOS/KUTANA
+    info:
+      path: iOS/KUTANA/Info.plist
+      properties:
+        CFBundleDisplayName: KUTANA
+        CFBundleURLTypes:
+          - CFBundleURLName: fr.yaroconsulting.kutana
+            CFBundleURLSchemes:
+              - kutana
+        ITSAppUsesNonExemptEncryption: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        KUTANA_SUPABASE_URL: "https://xwhjzftrzikgqweowtus.supabase.co"
+        KUTANA_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x-MshIA-X2hZ1fJJdjvtFw_dt-05xAI"
+    entitlements:
+      path: iOS/KUTANA/KUTANA.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana
