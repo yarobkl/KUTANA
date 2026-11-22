@@ -25,6 +25,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana
         INFOPLIST_KEY_CFBundleDisplayName: KUTANA
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         DEVELOPMENT_TEAM: UK4UQCQ57G
 schemes:
   KUTANA:
