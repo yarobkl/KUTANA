@@ -30,6 +30,14 @@ jobs:
             iOS/KUTANA/Core/Networking/Backend.swift \
             Tests/HTTPBodyFixture.swift Tests/drafts_smoke.swift -o /tmp/kutana-drafts
           /tmp/kutana-drafts
+      - name: Publication and seller messaging HTTP contract tests
+        run: |
+          swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift \
+            iOS/KUTANA/Core/Domain/Drafts.swift \
+            iOS/KUTANA/Core/Networking/Backend.swift \
+            Tests/HTTPBodyFixture.swift \
+            Tests/publications_smoke.swift -o /tmp/kutana-publications
+          /tmp/kutana-publications
       - name: Private chat transport tests
         run: |
           swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift \

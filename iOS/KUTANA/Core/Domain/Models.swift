@@ -27,6 +27,10 @@ struct JobRecord: Identifiable, Codable, Sendable {
     let created_at: Date
 }
 
+struct ListingImageLink: Codable, Sendable {
+    let storage_path: String
+}
+
 struct ListingRecord: Identifiable, Codable, Sendable {
     let id: UUID
     let seller_id: UUID
@@ -37,6 +41,22 @@ struct ListingRecord: Identifiable, Codable, Sendable {
     let price_xaf: Int64
     let status: String
     let created_at: Date
+    var listing_images: [ListingImageLink]? = nil
+}
+
+
+struct ListingImageRecord: Identifiable, Codable, Sendable {
+    let id: UUID
+    let listing_id: UUID
+    let storage_path: String
+    let sort_order: Int
+}
+
+
+struct ApplicationCVRecord: Codable, Sendable {
+    let application_id: UUID
+    let storage_path: String
+    let file_name: String
 }
 
 struct ApplicationRecord: Identifiable, Codable, Sendable {
@@ -65,6 +85,19 @@ struct MessageRecord: Identifiable, Codable, Sendable {
 struct ApplicationJobInfo: Codable, Sendable {
     let title: String
     let company: String
+}
+
+
+/// Recruiter-facing application; candidate contact details are not exposed.
+struct RecruiterApplication: Identifiable, Codable, Sendable {
+    let id: UUID
+    let job_id: UUID
+    let candidate_id: UUID
+    let status: ApplicationState
+    let created_at: Date
+    let job_title: String
+    let company: String
+    let candidate_name: String
 }
 
 struct ApplicationWithJob: Identifiable, Codable, Sendable {

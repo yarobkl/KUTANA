@@ -12,3 +12,7 @@ swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Dom
 
 swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift iOS/KUTANA/Core/Networking/AccessTokenMetadata.swift Tests/HTTPBodyFixture.swift Tests/chat_smoke.swift -o /tmp/kutana-chat-smoke
 /tmp/kutana-chat-smoke
+
+
+swiftc -parse-as-library iOS/KUTANA/Core/Domain/Models.swift iOS/KUTANA/Core/Domain/Drafts.swift iOS/KUTANA/Core/Networking/Backend.swift Tests/HTTPBodyFixture.swift Tests/publications_smoke.swift -o /tmp/kutana-publications-smoke
+/tmp/kutana-publications-smoke

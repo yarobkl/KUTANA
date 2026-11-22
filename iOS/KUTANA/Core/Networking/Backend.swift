@@ -26,6 +26,19 @@ struct BackendConfiguration: Sendable {
     }
 }
 
+extension BackendConfiguration {
+    func publicListingImageURL(path: String) -> URL? {
+        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 3,
+              UUID(uuidString: String(pieces[0])) != nil,
+              UUID(uuidString: String(pieces[1])) != nil,
+              pieces[2].hasSuffix(".jpg"),
+              UUID(uuidString: String(pieces[2].dropLast(4))) != nil else { return nil }
+        return endpoint.appending(path: "storage/v1/object/public/kutana-listing-images/\(path)")
+    }
+
+}
+
 enum BackendError: Error {
     case notConfigured, notAuthenticated, invalidResponse, server(Int)
 }
@@ -68,11 +81,55 @@ actor KutanaAPI {
 
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {
         try await get("listings", query: [
-            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at"),
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,listing_images(storage_path)"),
             URLQueryItem(name: "status", value: "eq.published"),
             URLQueryItem(name: "order", value: "created_at.desc"),
             URLQueryItem(name: "limit", value: String(min(max(limit, 1), 50)))
         ])
+    }
+
+
+    /// RLS also enforces ownership; the explicit predicate keeps the account list scoped.
+    func myJobs(ownerID: UUID, accessToken: String) async throws -> [JobRecord] {
+        try await get("jobs", query: [
+            URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),
+            URLQueryItem(name: "author_id", value: "eq.\(ownerID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
+    func myListings(ownerID: UUID, accessToken: String) async throws -> [ListingRecord] {
+        try await get("listings", query: [
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at"),
+            URLQueryItem(name: "seller_id", value: "eq.\(ownerID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.desc"),
+            URLQueryItem(name: "limit", value: "100")
+        ], accessToken: accessToken)
+    }
+
+
+    /// Only applications attached to the signed-in recruiter's jobs are visible through RLS.
+    func receivedApplications(accessToken: String) async throws -> [RecruiterApplication] {
+        try await get("rpc/received_applications", query: [], accessToken: accessToken)
+    }
+
+    /// The recruiter-only SQL RPC validates ownership and records an audit event.
+    func changeApplicationStatus(id: UUID, next: ApplicationState, accessToken: String) async throws {
+        guard !accessToken.isEmpty, next != .submitted else { throw BackendError.invalidResponse }
+        let url = configuration.endpoint.appending(path: "rest/v1/rpc/change_application_status")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "p_application": id.uuidString.lowercased(), "p_next": next.rawValue
+        ])
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
     }
 
     func myApplications(accessToken: String) async throws -> [ApplicationWithJob] {
@@ -136,6 +193,142 @@ actor KutanaAPI {
 
     func createListingDraft(_ input: ListingDraftInput, accessToken: String) async throws -> UUID {
         try await rpc(name: "create_listing_draft", body: input, accessToken: accessToken)
+    }
+
+
+    /// Author-only transitions; publishing requires a server-verified email.
+    func publishJob(id: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "publish_job", body: ["p_job": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func publishListing(id: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "publish_listing", body: ["p_listing": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func withdrawPublication(kind: String, id: UUID, accessToken: String) async throws -> UUID {
+        guard kind == "job" || kind == "listing" else { throw BackendError.invalidResponse }
+        return try await rpc(name: "withdraw_publication", body: [
+            "p_kind": kind, "p_id": id.uuidString.lowercased()
+        ], accessToken: accessToken)
+    }
+
+    func startListingConversation(listingID: UUID, accessToken: String) async throws -> UUID {
+        try await rpc(name: "start_listing_conversation",
+                      body: ["p_listing": listingID.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func reportContent(kind: String, id: UUID, reason: String, accessToken: String) async throws -> UUID {
+        let cleaned = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ["job","listing"].contains(kind), (10...2000).contains(cleaned.count) else {
+            throw BackendError.invalidResponse
+        }
+        return try await rpc(name: "report_content", body: [
+            "p_kind": kind, "p_id": id.uuidString.lowercased(), "p_reason": cleaned
+        ], accessToken: accessToken)
+    }
+
+
+    func listingImages(listingID: UUID, accessToken: String? = nil) async throws -> [ListingImageRecord] {
+        try await get("listing_images", query: [
+            URLQueryItem(name: "select", value: "id,listing_id,storage_path,sort_order"),
+            URLQueryItem(name: "listing_id", value: "eq.\(listingID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "sort_order.asc"),
+            URLQueryItem(name: "limit", value: "5")
+        ], accessToken: accessToken)
+    }
+
+    /// Metadata is added only after successful upload; the server checks owner,
+    /// unpublished status, actual storage object and per-listing photo quota.
+    func uploadListingImage(_ jpeg: Data, listingID: UUID, ownerID: UUID,
+                            accessToken: String) async throws -> UUID {
+        guard (1...5_242_880).contains(jpeg.count), !accessToken.isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let path = "\(ownerID.uuidString.lowercased())/\(listingID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+        let url = configuration.endpoint.appending(path: "storage/v1/object/kutana-listing-images/\(path)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 35
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue("false", forHTTPHeaderField: "x-upsert")
+        request.httpBody = jpeg
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try await rpc(name: "attach_listing_image", body: [
+            "p_listing": listingID.uuidString.lowercased(), "p_path": path
+        ], accessToken: accessToken)
+    }
+
+
+    func applicationCV(applicationID: UUID, accessToken: String) async throws -> ApplicationCVRecord? {
+        let results: [ApplicationCVRecord] = try await get("application_cvs", query: [
+            URLQueryItem(name: "select", value: "application_id,storage_path,file_name"),
+            URLQueryItem(name: "application_id", value: "eq.\(applicationID.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return results.first
+    }
+
+    /// Upload a PDF into the candidate's private bucket folder, then attach it
+    /// to their own application through a server-authorized RPC.
+    func uploadApplicationCV(_ pdf: Data, filename: String, applicationID: UUID,
+                             ownerID: UUID, accessToken: String) async throws -> UUID {
+        guard (5...5_242_880).contains(pdf.count),
+              pdf.starts(with: Data("%PDF-".utf8)), !accessToken.isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let cleanName = String(filename.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ").prefix(160))
+        guard !cleanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw BackendError.invalidResponse
+        }
+        let path = "\(ownerID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).pdf"
+        let url = configuration.endpoint.appending(path: "storage/v1/object/kutana-cvs/\(path)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 40
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
+        request.setValue("false", forHTTPHeaderField: "x-upsert")
+        request.httpBody = pdf
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try await rpc(name: "attach_application_cv", body: [
+            "p_application": applicationID.uuidString.lowercased(),
+            "p_path": path,
+            "p_file_name": cleanName
+        ], accessToken: accessToken)
+    }
+
+    /// RLS allows reading only by the candidate or the recruiting job owner.
+    /// An authenticated PDF is copied to a temporary local file for Quick Look.
+    func downloadApplicationCV(_ cv: ApplicationCVRecord, accessToken: String) async throws -> URL {
+        guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
+        let pieces = cv.storage_path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 2, UUID(uuidString: String(pieces[0])) != nil,
+              pieces[1].hasSuffix(".pdf"),
+              UUID(uuidString: String(pieces[1].dropLast(4))) != nil else {
+            throw BackendError.invalidResponse
+        }
+        let url = configuration.endpoint.appending(path: "storage/v1/object/authenticated/kutana-cvs/\(cv.storage_path)")
+        var request = URLRequest(url: url)
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode),
+              (5...5_242_880).contains(data.count),
+              data.starts(with: Data("%PDF-".utf8)) else { throw BackendError.invalidResponse }
+        let local = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KUTANA-CV-\(UUID().uuidString)")
+            .appendingPathExtension("pdf")
+        try data.write(to: local, options: .atomic)
+        return local
     }
 
     private func rpc<T: Encodable>(name: String, body: T, accessToken: String) async throws -> UUID {

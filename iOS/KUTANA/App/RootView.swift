@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
@@ -20,8 +22,15 @@ struct PublishView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Préparez votre publication. Elle restera privée tant qu'un parcours de vérification et de publication n'aura pas été validé.")
+                    Text("Préparez une offre ou une annonce, ajoutez des photos si nécessaire, puis mettez-la en ligne. Vos brouillons restent privés jusqu'à votre décision.")
                         .font(.subheadline).foregroundStyle(.secondary)
+                }
+                Section {
+                    NavigationLink {
+                        MyPublicationsView()
+                    } label: {
+                        Label("Mes publications", systemImage: "square.stack")
+                    }
                 }
                 Section("Créer un brouillon") {
                     NavigationLink {
@@ -50,6 +59,8 @@ private struct JobDraftFormView: View {
     @State private var description = ""
     @State private var saving = false
     @State private var savedID: UUID?
+    @State private var publishing = false
+    @State private var published = false
     @State private var errorMessage: String?
 
     private let contractTypes = ["CDI", "CDD", "Stage", "Alternance", "Intérim", "Freelance", "Autre"]
@@ -68,7 +79,7 @@ private struct JobDraftFormView: View {
             }
             Section {
                 if let savedID {
-                    Label("Brouillon privé enregistré", systemImage: "checkmark.circle.fill")
+                    Label(published ? "Publication en ligne" : "Brouillon privé enregistré", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text("Référence : \(savedID.uuidString)").font(.caption2).textSelection(.enabled)
                 }
@@ -80,8 +91,14 @@ private struct JobDraftFormView: View {
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
                     Task { await save() }
                 }.disabled(!identity.authenticated || !identity.isConfigured || saving || savedID != nil)
+                if let savedID, !published {
+                    KutanaPrimaryButton(title: publishing ? "Mise en ligne…" : "Mettre en ligne") {
+                        Task { await publish(id: savedID) }
+                    }
+                    .disabled(publishing || !identity.authenticated)
+                }
             } footer: {
-                Text("Votre offre n'est pas publique. La publication sera possible après validation du parcours de modération.")
+                Text("L'offre est privée tant que vous ne choisissez pas « Mettre en ligne ». Votre e-mail doit être vérifié.")
             }
         }
         .navigationTitle("Nouvelle offre")
@@ -106,6 +123,25 @@ private struct JobDraftFormView: View {
                 "Enregistrement impossible. Vérifiez votre connexion et réessayez."
         }
     }
+
+    @MainActor private func publish(id: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Reconnectez-vous pour publier."
+            return
+        }
+        publishing = true
+        errorMessage = nil
+        defer { publishing = false }
+        do {
+            _ = try await KutanaAPI(configuration: configuration).publishJob(id: id, accessToken: token)
+            published = true
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+        } catch {
+            errorMessage = "Publication impossible. Vérifiez votre e-mail et réessayez."
+        }
+    }
+
 }
 
 private struct ListingDraftFormView: View {
@@ -117,6 +153,8 @@ private struct ListingDraftFormView: View {
     @State private var price = ""
     @State private var saving = false
     @State private var savedID: UUID?
+    @State private var publishing = false
+    @State private var published = false
     @State private var errorMessage: String?
     private let categories = ["Téléphones", "Informatique", "Électroménager", "Meubles", "Véhicules", "Mode", "Maison", "Matériel professionnel", "Autres"]
 
@@ -132,9 +170,17 @@ private struct ListingDraftFormView: View {
                 TextField("État, caractéristiques, accessoires…", text: $description, axis: .vertical)
                     .lineLimit(5...12)
             }
+            Section("Photos") {
+                if let savedID, !published {
+                    ListingPhotoUploader(listingID: savedID)
+                } else if savedID == nil {
+                    Text("Enregistrez le brouillon pour ajouter les photos.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
             Section {
                 if let savedID {
-                    Label("Brouillon privé enregistré", systemImage: "checkmark.circle.fill")
+                    Label(published ? "Publication en ligne" : "Brouillon privé enregistré", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text("Référence : \(savedID.uuidString)").font(.caption2).textSelection(.enabled)
                 }
@@ -146,8 +192,14 @@ private struct ListingDraftFormView: View {
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
                     Task { await save() }
                 }.disabled(!identity.authenticated || !identity.isConfigured || saving || savedID != nil)
+                if let savedID, !published {
+                    KutanaPrimaryButton(title: publishing ? "Mise en ligne…" : "Mettre en ligne") {
+                        Task { await publish(id: savedID) }
+                    }
+                    .disabled(publishing || !identity.authenticated)
+                }
             } footer: {
-                Text("Annonce privée jusqu'à sa vérification. Aucun paiement n'est réalisé dans KUTANA.")
+                Text("L'annonce reste privée jusqu'à sa mise en ligne. Aucun paiement n'est réalisé dans KUTANA.")
             }
         }
         .navigationTitle("Nouvelle annonce")
@@ -170,6 +222,329 @@ private struct ListingDraftFormView: View {
         } catch {
             errorMessage = error is DraftValidationError ? error.localizedDescription :
                 "Enregistrement impossible. Vérifiez votre connexion et réessayez."
+        }
+    }
+
+    @MainActor private func publish(id: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Reconnectez-vous pour publier."
+            return
+        }
+        publishing = true
+        errorMessage = nil
+        defer { publishing = false }
+        do {
+            _ = try await KutanaAPI(configuration: configuration).publishListing(id: id, accessToken: token)
+            published = true
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+        } catch {
+            errorMessage = "Publication impossible. Vérifiez votre e-mail et ajoutez au moins une photo."
+        }
+    }
+
+}
+
+
+/// Owner dashboard: drafts stay private and can only be published through a
+/// server-validated, authenticated RPC (never by direct UPDATE).
+struct MyPublicationsView: View {
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @State private var jobs: [JobRecord] = []
+    @State private var listings: [ListingRecord] = []
+    @State private var loading = false
+    @State private var changingID: UUID?
+    @State private var errorMessage: String?
+    @State private var notice: String?
+
+    var body: some View {
+        List {
+            if loading { ProgressView("Chargement de vos publications…") }
+            if let errorMessage {
+                Text(errorMessage).font(.footnote).foregroundStyle(.red)
+            }
+            if let notice {
+                Text(notice).font(.footnote).foregroundStyle(.green)
+            }
+            Section("Emploi") {
+                ForEach(jobs) { job in
+                    publicationRow(title: job.title, subtitle: "\(job.company) · \(job.city)",
+                                   status: job.status, kind: "job", id: job.id)
+                }
+                if jobs.isEmpty && !loading {
+                    Text("Aucune offre créée").foregroundStyle(.secondary)
+                }
+            }
+            Section("Petites annonces") {
+                ForEach(listings) { item in
+                    publicationRow(title: item.title, subtitle: "\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)",
+                                   status: item.status, kind: "listing", id: item.id)
+                    if item.status == "draft" {
+                        NavigationLink {
+                            ListingPhotoManagerView(listingID: item.id)
+                        } label: {
+                            Label("Gérer les photos · \(item.title)", systemImage: "photo.on.rectangle")
+                                .font(.subheadline)
+                        }
+                    }
+                }
+                if listings.isEmpty && !loading {
+                    Text("Aucune annonce créée").foregroundStyle(.secondary)
+                }
+            }
+            Section {
+                Text("Les brouillons sont privés. Une publication en ligne est visible par tous. Vous pouvez la retirer à tout moment.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Mes publications")
+        .refreshable { await load() }
+        .task { await load() }
+    }
+
+    @ViewBuilder private func publicationRow(title: String, subtitle: String, status: String,
+                                             kind: String, id: UUID) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.headline)
+            Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+            Text(statusLabel(status)).font(.caption).foregroundStyle(.secondary)
+            if status == "draft" || status == "published" {
+                Button(changingID == id ? "Traitement…" : (status == "draft" ? "Mettre en ligne" : "Retirer de la plateforme")) {
+                    Task { await change(kind: kind, id: id, publishing: status == "draft") }
+                }
+                .disabled(changingID != nil)
+                .font(.subheadline.weight(.semibold))
+            }
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func statusLabel(_ status: String) -> String {
+        switch status {
+        case "draft": return "Brouillon privé"
+        case "published": return "En ligne"
+        case "closed": return "Offre clôturée"
+        case "reserved": return "Réservée"
+        case "sold": return "Vendue"
+        case "archived": return "Annonce retirée"
+        default: return status
+        }
+    }
+
+    @MainActor private func load() async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let owner = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Connectez-vous pour retrouver vos publications."
+            return
+        }
+        loading = true
+        errorMessage = nil
+        defer { loading = false }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            jobs = try await api.myJobs(ownerID: owner, accessToken: token)
+            listings = try await api.myListings(ownerID: owner, accessToken: token)
+        } catch {
+            errorMessage = "Impossible de récupérer vos publications."
+        }
+    }
+
+    @MainActor private func change(kind: String, id: UUID, publishing: Bool) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Votre session a expiré."
+            return
+        }
+        changingID = id
+        errorMessage = nil
+        notice = nil
+        defer { changingID = nil }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            if publishing {
+                if kind == "job" { _ = try await api.publishJob(id: id, accessToken: token) }
+                else { _ = try await api.publishListing(id: id, accessToken: token) }
+            } else {
+                _ = try await api.withdrawPublication(kind: kind, id: id, accessToken: token)
+            }
+            await load()
+            notice = publishing ? "Publication en ligne." : "Publication retirée."
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+        } catch {
+            errorMessage = publishing
+                ? "Impossible de publier. Votre adresse e-mail doit être vérifiée."
+                : "Impossible de retirer cette publication."
+        }
+    }
+}
+
+
+/// User-generated content moderation entry point, scoped to a published job or listing.
+struct ReportContentSheet: View {
+    let kind: String
+    let contentID: UUID
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var reason = ""
+    @State private var sending = false
+    @State private var errorMessage: String?
+    @State private var sent = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Pourquoi signalez-vous ce contenu ?") {
+                    TextField("Décrivez le problème (10 caractères minimum)", text: $reason, axis: .vertical)
+                        .lineLimit(4...8)
+                }
+                Section {
+                    if let errorMessage {
+                        Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                    }
+                    if sent {
+                        Label("Signalement transmis", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Button(sending ? "Envoi en cours…" : "Envoyer le signalement") {
+                            Task { await send() }
+                        }
+                        .disabled(sending || !(10...2000).contains(reason.trimmingCharacters(in: .whitespacesAndNewlines).count))
+                    }
+                } footer: {
+                    Text("Les signalements sont examinés par l'équipe de modération. Aucun contenu n'est automatiquement retiré.")
+                }
+            }
+            .navigationTitle("Signaler")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @MainActor private func send() async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Reconnectez-vous avant de signaler."
+            return
+        }
+        sending = true
+        errorMessage = nil
+        defer { sending = false }
+        do {
+            _ = try await KutanaAPI(configuration: configuration)
+                .reportContent(kind: kind, id: contentID, reason: reason, accessToken: token)
+            sent = true
+        } catch {
+            errorMessage = "Impossible d'enregistrer le signalement."
+        }
+    }
+}
+
+
+/// Shared draft photo flow: available for newly created listings and existing drafts.
+struct ListingPhotoManagerView: View {
+    let listingID: UUID
+    var body: some View {
+        ScrollView {
+            ListingPhotoUploader(listingID: listingID)
+                .padding(20)
+        }
+        .navigationTitle("Photos de l'annonce")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ListingPhotoUploader: View {
+    let listingID: UUID
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @State private var selected: [PhotosPickerItem] = []
+    @State private var images: [ListingImageRecord] = []
+    @State private var uploading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Jusqu'à 5 photos. La première sera utilisée pour présenter l'annonce.")
+                .font(.footnote).foregroundStyle(.secondary)
+            PhotosPicker(selection: $selected, maxSelectionCount: 5, matching: .images) {
+                Label(uploading ? "Ajout des photos…" : "Ajouter des photos", systemImage: "photo.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .disabled(uploading || images.count >= 5)
+            if uploading { ProgressView("Importation sécurisée…") }
+            if let errorMessage {
+                Text(errorMessage).font(.footnote).foregroundStyle(.red)
+            }
+            Text("\(images.count) photo(s) enregistrée(s)")
+                .font(.caption).foregroundStyle(.secondary)
+            ScrollView(.horizontal) {
+                HStack(spacing: 10) {
+                    ForEach(images) { item in
+                        if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
+                            AsyncImage(url: url) { photo in
+                                photo.resizable().scaledToFill()
+                            } placeholder: {
+                                ProgressView()
+                            }
+                            .frame(width: 108, height: 108)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Photo d'annonce")
+                        }
+                    }
+                }
+            }
+        }
+        .task(id: listingID) { await load() }
+        .onChange(of: selected) { _, items in
+            Task { await upload(items) }
+        }
+    }
+
+    @MainActor private func load() async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else { return }
+        do {
+            images = try await KutanaAPI(configuration: configuration)
+                .listingImages(listingID: listingID, accessToken: token)
+        } catch {
+            errorMessage = "Impossible de charger les photos."
+        }
+    }
+
+    @MainActor private func upload(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty, !uploading else { return }
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let owner = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour ajouter des photos."
+            return
+        }
+        uploading = true
+        errorMessage = nil
+        defer {
+            uploading = false
+            selected = []
+        }
+        let api = KutanaAPI(configuration: configuration)
+        for item in items.prefix(max(0, 5 - images.count)) {
+            do {
+                guard let original = try await item.loadTransferable(type: Data.self),
+                      let source = UIImage(data: original),
+                      let jpeg = source.jpegData(compressionQuality: 0.72),
+                      (1...5_242_880).contains(jpeg.count) else {
+                    errorMessage = "Photo illisible ou trop volumineuse (maximum 5 Mo)."
+                    continue
+                }
+                _ = try await api.uploadListingImage(jpeg, listingID: listingID,
+                                                    ownerID: owner, accessToken: token)
+                await load()
+            } catch {
+                errorMessage = "Échec de l'importation. Réessayez avec une photo JPEG."
+            }
         }
     }
 }
