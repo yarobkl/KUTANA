@@ -1,0 +1,60 @@
+name: KUTANA - Social provider readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/social-provider-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect public KUTANA Auth provider availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+          text = Path("project.yml").read_text(encoding="utf-8")
+          match = re.search(r'^\s*INFOPLIST_KEY_KUTANA_SUPABASE_PUBLISHABLE_KEY:\s*["\']?([^"\'\s]+)', text, re.M)
+          if not match:
+              raise SystemExit("Missing KUTANA public API key in project.yml")
+          key = match.group(1)
+          url = "https://xwhjzftrzikgqweowtus.supabase.co/auth/v1/settings"
+          request = urllib.request.Request(url, headers={"apikey": key, "Accept": "application/json"})
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  settings = json.load(response)
+          except (urllib.error.HTTPError, urllib.error.URLError) as error:
+              print("::warning::Could not query Supabase Auth public settings:", str(error))
+              settings = {}
+          enabled = settings.get("external") or {}
+          if isinstance(enabled, dict):
+              for provider in ("apple", "google"):
+                  state = enabled.get(provider)
+                  label = "enabled" if state is True else ("disabled" if state is False else "unknown")
+                  print(f"{provider.upper()} provider: {label}")
+                  if state is False:
+                      print(f"::warning::KUTANA {provider.title()} login is disabled in Supabase Auth > Providers")
+          else:
+              print("::warning::Unexpected Supabase public settings payload")
+              enabled = {}
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## KUTANA Supabase social login readiness\n\n")
+              for provider in ("apple", "google"):
+                  state = enabled.get(provider)
+                  summary.write(f"- {provider.title()}: {'Enabled' if state is True else ('Disabled' if state is False else 'Could not determine')}\n")
+              summary.write("\nGoogle also requires an OAuth client and `kutana://auth/callback` in the Supabase redirect allowlist.\n")
+              summary.write("Apple native sign-in requires the App ID Sign in with Apple capability and native bundle ID in its provider configuration.\n")
+          PY
