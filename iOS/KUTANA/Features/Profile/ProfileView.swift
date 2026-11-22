@@ -13,10 +13,14 @@ struct ProfileView: View {
                     NavigationLink { ApplicationsView() } label: {
                         Label("Mes candidatures", systemImage: "doc.text")
                     }
-                    Label("Mes offres sauvegardées", systemImage: "bookmark")
+                    NavigationLink { MyPublicationsView() } label: {
+                        Label("Mes offres publiées", systemImage: "briefcase")
+                    }
                 }
                 Section("Annonces") {
-                    Label("Mes annonces", systemImage: "tag")
+                    NavigationLink { MyPublicationsView() } label: {
+                        Label("Mes annonces", systemImage: "tag")
+                    }
                 }
                 Section {
                     Button("Se déconnecter", role: .destructive) { identity.signOut() }
