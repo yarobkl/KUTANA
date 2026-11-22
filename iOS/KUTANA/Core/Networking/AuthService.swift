@@ -73,7 +73,7 @@ actor KutanaAuthService {
 
     /// Supabase GoTrue exchanges Apple's native identity token for a KUTANA session.
     func signInWithApple(idToken: String, nonce: String) async throws -> AuthSession {
-        guard !idToken.isEmpty, !nonce.isEmpty else { throw KutanaSocialAuthError.missingAppleToken }
+        guard !idToken.isEmpty, !nonce.isEmpty else { throw AuthFailure.invalidSession }
         let response: AuthResponse = try await send(path: "token?grant_type=id_token", body: [
             "provider": "apple", "id_token": idToken, "nonce": nonce
         ])
@@ -144,7 +144,7 @@ actor KutanaAuthService {
                     if detail.localizedCaseInsensitiveContains("provider") &&
                         (detail.localizedCaseInsensitiveContains("disabled") ||
                          detail.localizedCaseInsensitiveContains("not enabled")) {
-                        throw KutanaSocialAuthError.providerNotReady
+                        throw AuthFailure.remoteMessage("La connexion via ce fournisseur n’est pas encore activée sur KUTANA.")
                     }
                     throw AuthFailure.remoteMessage(detail.isEmpty
                         ? "La connexion avec ce fournisseur n'est pas disponible. Vérifiez sa configuration."
