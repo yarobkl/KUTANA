@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'ci/trigger-kutana-testflight.txt'
+      - '.github/workflows/testflight-cloud-signing.yml'
 
 permissions:
   contents: read
