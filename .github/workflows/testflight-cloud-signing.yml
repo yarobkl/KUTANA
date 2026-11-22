@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'ci/trigger-kutana-testflight.txt'
+      - 'project.yml'
       - '.github/workflows/testflight-cloud-signing.yml'
 
 permissions:
@@ -105,6 +106,9 @@ jobs:
           print("iPad orientations:", info.get("UISupportedInterfaceOrientations~ipad", []))
           if not isinstance(values, list) or not expected.issubset(set(values)):
               raise SystemExit("App Store Connect requires all four base orientations for iPad multitasking.")
+          if not isinstance(info.get("UILaunchScreen"), dict) and not info.get("UILaunchStoryboardName"):
+              raise SystemExit("The built archive is missing UILaunchScreen or UILaunchStoryboardName. Apple will reject iPad multitasking.")
+          print("Launch screen configuration valid.")
           PY
 
       - name: Export and upload to App Store Connect
