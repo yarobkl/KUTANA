@@ -1,0 +1,67 @@
+name: KUTANA - Prepare native Xcode project for Xcode Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-xcode-cloud.yml'
+      - 'project.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kutana-xcode-cloud-project
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate and inspect the actual native Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          test -s KUTANA.xcodeproj/project.pbxproj
+          xcodebuild -list -project KUTANA.xcodeproj
+          test -f KUTANA.xcodeproj/xcshareddata/xcschemes/KUTANA.xcscheme
+          grep -q 'fr.yaroconsulting.kutana' KUTANA.xcodeproj/project.pbxproj
+          grep -q 'UK4UQCQ57G' KUTANA.xcodeproj/project.pbxproj
+
+      - name: Commit only generated Xcode project definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f KUTANA.xcodeproj/project.pbxproj
+          git add -f KUTANA.xcodeproj/xcshareddata/xcschemes/KUTANA.xcscheme
+          if [[ -f KUTANA.xcodeproj/project.xcworkspace/contents.xcworkspacedata ]]; then
+            git add -f KUTANA.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+          fi
+          if git diff --cached --quiet; then
+            echo 'Generated Xcode project already up to date.'
+            exit 0
+          fi
+          git commit -m 'build(ios): check in generated Xcode project for Xcode Cloud'
+          git push origin HEAD:main
+
+      - name: Report next Apple onboarding step
+        run: |
+          {
+            echo '## KUTANA Xcode Cloud preparation'
+            echo 'Native Xcode project and shared scheme are now in the GitHub repository.'
+            echo 'Next: connect this private GitHub repository to Xcode Cloud through the Apple account.'
+            echo 'Use KUTANA scheme with automatic signing and TestFlight distribution.'
+            echo 'No Apple private API key is stored in GitHub.'
+          } >> "$GITHUB_STEP_SUMMARY"
