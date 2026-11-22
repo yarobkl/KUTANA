@@ -27,6 +27,10 @@ struct JobRecord: Identifiable, Codable, Sendable {
     let created_at: Date
 }
 
+struct ListingImageLink: Codable, Sendable {
+    let storage_path: String
+}
+
 struct ListingRecord: Identifiable, Codable, Sendable {
     let id: UUID
     let seller_id: UUID
@@ -37,6 +41,7 @@ struct ListingRecord: Identifiable, Codable, Sendable {
     let price_xaf: Int64
     let status: String
     let created_at: Date
+    var listing_images: [ListingImageLink]? = nil
 }
 
 
