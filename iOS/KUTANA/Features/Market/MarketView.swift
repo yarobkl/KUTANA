@@ -61,6 +61,7 @@ struct MarketView: View {
     private var discoveryControls: some View {
         Section {
             KutanaInlineSearch(text: $query, prompt: "Article, catégorie ou ville")
+                .padding(.horizontal, 16)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Menu {
