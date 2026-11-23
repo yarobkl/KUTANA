@@ -26,6 +26,9 @@ targets:
       path: iOS/KUTANA/Info.plist
       properties:
         CFBundleDisplayName: KUTANA
+        CFBundleDevelopmentRegion: fr
+        CFBundleLocalizations:
+          - fr
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleURLTypes:
