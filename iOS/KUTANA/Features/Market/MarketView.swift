@@ -29,7 +29,10 @@ struct MarketView: View {
         }
     }
 
-    private var favoriteIDs: Set<String> { Set(savedFavorites.split(separator: ",").map(String.init)) }
+    private var favoriteIDs: Set<String> {
+        guard identity.authenticated else { return [] }
+        return Set(savedFavorites.split(separator: ",").map(String.init))
+    }
 
     private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
 
@@ -60,6 +63,9 @@ struct MarketView: View {
                 }
             }
             .refreshable { await load() }
+            .onChange(of: identity.authenticated) { _, authenticated in
+                if !authenticated { favoritesOnly = false }
+            }
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
                 Task { await load() }
@@ -207,7 +213,7 @@ private struct ListingDetailView: View {
     }
 
     private var isFavorite: Bool {
-        savedFavorites.split(separator: ",").contains(Substring(item.id.uuidString.lowercased()))
+        identity.authenticated && savedFavorites.split(separator: ",").contains(Substring(item.id.uuidString.lowercased()))
     }
 
     var body: some View {
