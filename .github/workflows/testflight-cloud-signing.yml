@@ -110,7 +110,7 @@ jobs:
           print("Launch screen configuration valid.")
           PY
 
-      - name: Export and upload to App Store Connect
+      - name: Export signed app and verify Apple sign-in entitlement
         shell: bash
         run: |
           set -euo pipefail
@@ -120,7 +120,7 @@ jobs:
           from pathlib import Path
           options = {
               "method": "app-store-connect",
-              "destination": "upload",
+              "destination": "export",
               "signingStyle": "automatic",
               "teamID": os.environ["APPLE_TEAM_ID"],
               "manageAppVersionAndBuildNumber": False,
@@ -130,14 +130,46 @@ jobs:
           PY
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/KUTANA.xcarchive" \
-            -exportPath "$RUNNER_TEMP/KUTANA-upload" \
+            -exportPath "$RUNNER_TEMP/KUTANA-export" \
             -exportOptionsPlist "$RUNNER_TEMP/KUTANA-ExportOptions.plist" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_API_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          ipa="$RUNNER_TEMP/KUTANA-export/KUTANA.ipa"
+          test -s "$ipa"
+          mkdir -p "$RUNNER_TEMP/KUTANA-signed"
+          unzip -q "$ipa" 'Payload/KUTANA.app/*' -d "$RUNNER_TEMP/KUTANA-signed"
+          app="$RUNNER_TEMP/KUTANA-signed/Payload/KUTANA.app"
+          codesign --verify --strict "$app"
+          codesign -d --entitlements :- "$app" > "$RUNNER_TEMP/KUTANA-signed-entitlements.plist" 2>/dev/null
+          security cms -D -i "$app/embedded.mobileprovision" > "$RUNNER_TEMP/KUTANA-profile.plist"
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          temp = Path(os.environ['RUNNER_TEMP'])
+          with (temp / 'KUTANA-signed-entitlements.plist').open('rb') as file:
+              signed = plistlib.load(file)
+          with (temp / 'KUTANA-profile.plist').open('rb') as file:
+              profile = plistlib.load(file)
+          expected = os.environ['APPLE_TEAM_ID'] + '.fr.yaroconsulting.kutana'
+          for label, rights in [('Signed app', signed), ('Provisioning profile', profile['Entitlements'])]:
+              if rights.get('application-identifier') != expected:
+                  raise SystemExit(f'{label}: unexpected application identifier; upload stopped.')
+              if rights.get('com.apple.developer.applesignin') != ['Default']:
+                  raise SystemExit(f'{label}: missing Sign in with Apple entitlement; upload stopped.')
+              print(f'{label}: correct bundle ID and Apple sign-in entitlement verified.')
+          PY
+
+      - name: Upload verified IPA to App Store Connect
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_PRIVATE_KEYS_DIR="$RUNNER_TEMP" xcrun altool --upload-app \
+            -f "$RUNNER_TEMP/KUTANA-export/KUTANA.ipa" -t ios \
+            --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
           echo "### KUTANA cloud signing" >> "$GITHUB_STEP_SUMMARY"
-          echo "Apple accepted the export/upload operation. Check App Store Connect for build processing." >> "$GITHUB_STEP_SUMMARY"
+          echo "Signed app and distribution profile include Apple sign-in; upload accepted. Check App Store Connect for build processing." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary Apple authentication materials
         if: always()
