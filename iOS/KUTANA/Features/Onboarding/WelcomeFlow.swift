@@ -353,12 +353,13 @@ private struct KutanaLoginView: View {
 
 private struct KutanaRegistrationView: View {
     let back: () -> Void
-    @State private var fullName = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
     @FocusState private var focusedField: RegistrationField?
-    private enum RegistrationField: Hashable { case name, email, password, confirmation }
+    private enum RegistrationField: Hashable { case firstName, lastName, email, password, confirmation }
     @State private var validationError: String?
     @EnvironmentObject private var identity: KutanaSessionStore
     var body: some View {
@@ -367,9 +368,13 @@ private struct KutanaRegistrationView: View {
                 Button(action: back) { Image(systemName: "chevron.left").font(.title3) }
                 KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez LUKA pour trouver un emploi, publier vos annonces et échanger facilement.")
                     .padding(.top, 33)
-                TextField("Nom et prénom", text: $fullName)
-                    .textContentType(.name).textInputAutocapitalization(.words)
-                    .submitLabel(.next).focused($focusedField, equals: .name)
+                TextField("Prénom", text: $firstName)
+                    .textContentType(.givenName).textInputAutocapitalization(.words)
+                    .submitLabel(.next).focused($focusedField, equals: .firstName)
+                    .onSubmit { focusedField = .lastName }.kutanaField()
+                TextField("Nom", text: $lastName)
+                    .textContentType(.familyName).textInputAutocapitalization(.words)
+                    .submitLabel(.next).focused($focusedField, equals: .lastName)
                     .onSubmit { focusedField = .email }.kutanaField()
                 TextField("Adresse e-mail", text: $email)
                     .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -391,12 +396,12 @@ private struct KutanaRegistrationView: View {
                     }
                     validationError = nil
                     Task {
-                        if await identity.signUp(email: email, password: password, fullName: fullName) {
+                        if await identity.signUp(email: email, password: password, fullName: "\(firstName.trimmingCharacters(in: .whitespacesAndNewlines)) \(lastName.trimmingCharacters(in: .whitespacesAndNewlines))") {
                             back()
                         }
                     }
                 }
-                    .disabled(!identity.isConfigured || identity.busy || fullName.isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty)
+                    .disabled(!identity.isConfigured || identity.busy || firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty)
                     .padding(.top, 30)
                 Text("Mot de passe : 12 caractères minimum.")
                     .font(.caption).foregroundStyle(.secondary)
