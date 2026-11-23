@@ -44,10 +44,19 @@ struct MarketView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { NotificationsView() } label: {
-                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    if identity.authenticated {
+                        NavigationLink { NotificationsView() } label: {
+                            Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                        }
+                        .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                    } else {
+                        Button {
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        } label: {
+                            Image(systemName: "bell")
+                        }
+                        .accessibilityLabel("Se connecter pour consulter les notifications")
                     }
-                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
                 }
             }
             .refreshable { await load() }

@@ -58,10 +58,12 @@ struct JobsView: View {
                                     Button(contract) { contractFilter = contract }
                                 }
                             } label: { KutanaFilterChip(title: contractFilter ?? "Contrat", symbol: "chevron.down", active: contractFilter != nil) }
-                            Button { favoritesOnly.toggle() } label: {
+                            Button {
+                                if identity.authenticated { favoritesOnly.toggle() }
+                                else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                            } label: {
                                 KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "bookmark.fill" : "bookmark", active: favoritesOnly)
                             }
-                            .disabled(!identity.authenticated)
                         }
                         .padding(.vertical, 2)
                     }
@@ -130,10 +132,19 @@ struct JobsView: View {
             .refreshable { await load() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { NotificationsView() } label: {
-                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    if identity.authenticated {
+                        NavigationLink { NotificationsView() } label: {
+                            Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                        }
+                        .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                    } else {
+                        Button {
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        } label: {
+                            Image(systemName: "bell")
+                        }
+                        .accessibilityLabel("Se connecter pour consulter les notifications")
                     }
-                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
                 }
             }
             .navigationTitle("Emploi")
