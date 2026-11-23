@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MarketView: View {
     let unreadCount: Int
+    @Namespace private var navigationNamespace
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var listings: [ListingRecord] = []
     @State private var category = "Toutes"
@@ -112,8 +113,10 @@ struct MarketView: View {
                 ForEach(visible) { item in
                     NavigationLink {
                         ListingDetailView(item: item)
+                            .modifier(KutanaTransitionDestination(id: item.id, namespace: navigationNamespace))
                     } label: {
                         listingRow(item)
+                            .modifier(KutanaTransitionSource(id: item.id, namespace: navigationNamespace))
                     }
                 }
                 if visible.isEmpty && !loading && hasLoaded {

@@ -341,7 +341,7 @@ actor KutanaAPI {
     }
 
     /// Metadata is added only after successful upload; the server checks owner,
-    /// unpublished status, actual storage object and per-listing photo quota.
+    /// listing status, actual storage object and per-listing photo quota.
     func uploadListingImage(_ jpeg: Data, listingID: UUID, ownerID: UUID,
                             accessToken: String) async throws -> UUID {
         guard (1...5_242_880).contains(jpeg.count), !accessToken.isEmpty else {
@@ -363,6 +363,27 @@ actor KutanaAPI {
         return try await rpc(name: "attach_listing_image", body: [
             "p_listing": listingID.uuidString.lowercased(), "p_path": path
         ], accessToken: accessToken)
+    }
+
+    func replaceListingImage(_ jpeg: Data, path: String, ownerID: UUID,
+                             accessToken: String) async throws {
+        guard (1...5_242_880).contains(jpeg.count), !accessToken.isEmpty,
+              path.hasPrefix(ownerID.uuidString.lowercased() + "/") else {
+            throw BackendError.invalidResponse
+        }
+        let url = configuration.endpoint.appending(path: "storage/v1/object/kutana-listing-images/\(path)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.timeoutInterval = 35
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue("0", forHTTPHeaderField: "cacheControl")
+        request.httpBody = jpeg
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw BackendError.invalidResponse
+        }
     }
 
 

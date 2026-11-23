@@ -14,6 +14,35 @@ enum KutanaMotion {
     static let reveal = Animation.spring(response: 0.36, dampingFraction: 0.88)
 }
 
+/// Native matched navigation on iOS 18+, with standard navigation on older iPhones.
+struct KutanaTransitionSource: ViewModifier {
+    let id: UUID
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), !reduceMotion {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+struct KutanaTransitionDestination: ViewModifier {
+    let id: UUID
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), !reduceMotion {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        } else {
+            content
+        }
+    }
+}
+
 struct KutanaPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

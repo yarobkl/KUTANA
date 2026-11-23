@@ -391,8 +391,8 @@ struct MyPublicationsView: View {
                 NavigationLink("Modifier l'annonce") {
                     ListingEditView(item: item) { Task { await load() } }
                 }
+                NavigationLink("Gérer les photos") { ListingPhotoManagerView(listingID: item.id) }
                 if item.status == "draft" {
-                    NavigationLink("Gérer les photos") { ListingPhotoManagerView(listingID: item.id) }
                     Button("Mettre en ligne") {
                         Task { await change(kind: "listing", id: item.id, publishing: true) }
                     }
@@ -648,7 +648,7 @@ struct ReportContentSheet: View {
 }
 
 
-/// Shared draft photo flow: available for newly created listings and existing drafts.
+/// Owner photo flow for drafts, live listings and archived listings.
 struct ListingPhotoManagerView: View {
     let listingID: UUID
     var body: some View {
@@ -667,6 +667,7 @@ struct ListingPhotoUploader: View {
     @State private var selected: [PhotosPickerItem] = []
     @State private var images: [ListingImageRecord] = []
     @State private var uploading = false
+    @State private var photoRevision = 0
     @State private var errorMessage: String?
 
     var body: some View {
@@ -688,14 +689,20 @@ struct ListingPhotoUploader: View {
                 HStack(spacing: 10) {
                     ForEach(images) { item in
                         if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
-                            AsyncImage(url: url) { photo in
-                                photo.resizable().scaledToFill()
-                            } placeholder: {
-                                ProgressView()
+                            VStack(spacing: 6) {
+                                AsyncImage(url: url.appending(queryItems: [URLQueryItem(name: "v", value: String(photoRevision))])) { photo in
+                                    photo.resizable().scaledToFill()
+                                } placeholder: {
+                                    ProgressView()
+                                }
+                                .frame(width: 108, height: 108)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .accessibilityLabel("Photo d'annonce")
+                                ListingPhotoReplacement {
+                                    Task { await replace($0, path: item.storage_path) }
+                                }
+                                .disabled(uploading)
                             }
-                            .frame(width: 108, height: 108)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .accessibilityLabel("Photo d'annonce")
                         }
                     }
                 }
@@ -748,6 +755,46 @@ struct ListingPhotoUploader: View {
             } catch {
                 errorMessage = "Échec de l'importation. Réessayez avec une photo JPEG."
             }
+        }
+    }
+
+    @MainActor private func replace(_ item: PhotosPickerItem, path: String) async {
+        guard !uploading, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let owner = AccessTokenMetadata.subject(token) else { return }
+        uploading = true
+        errorMessage = nil
+        defer { uploading = false }
+        do {
+            guard let original = try await item.loadTransferable(type: Data.self),
+                  let source = UIImage(data: original),
+                  let jpeg = source.jpegData(compressionQuality: 0.72),
+                  (1...5_242_880).contains(jpeg.count) else {
+                errorMessage = "Photo illisible ou trop volumineuse (maximum 5 Mo)."
+                return
+            }
+            try await KutanaAPI(configuration: configuration)
+                .replaceListingImage(jpeg, path: path, ownerID: owner, accessToken: token)
+            photoRevision += 1
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+        } catch {
+            errorMessage = "Impossible de remplacer cette photo. Réessayez."
+        }
+    }
+}
+
+private struct ListingPhotoReplacement: View {
+    let onSelect: (PhotosPickerItem) -> Void
+    @State private var selection: PhotosPickerItem?
+
+    var body: some View {
+        PhotosPicker(selection: $selection, matching: .images) {
+            Label("Remplacer", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption.weight(.semibold))
+        }
+        .onChange(of: selection) { _, item in
+            if let item { onSelect(item) }
+            selection = nil
         }
     }
 }

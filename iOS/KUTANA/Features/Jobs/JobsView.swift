@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JobsView: View {
     let unreadCount: Int
+    @Namespace private var navigationNamespace
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var query = ""
     @State private var cityFilter: String?
@@ -87,6 +88,7 @@ struct JobsView: View {
                     ForEach(visible) { job in
                         NavigationLink {
                             JobDetailView(job: job, preview: isPreview)
+                                .modifier(KutanaTransitionDestination(id: job.id, namespace: navigationNamespace))
                         } label: {
                             HStack(alignment: .top, spacing: 14) {
                                 Image(systemName: "building.2.crop.circle")
@@ -114,6 +116,7 @@ struct JobsView: View {
                                 }
                             }
                             .padding(.vertical, 9)
+                            .modifier(KutanaTransitionSource(id: job.id, namespace: navigationNamespace))
                         }
                     }
                     if visible.isEmpty && !loading && hasLoaded {
