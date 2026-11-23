@@ -14,11 +14,11 @@ struct WelcomeFlow: View {
     @State private var showingPreview = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if identity.authenticated {
-                    RootView(allowNotificationPrompt: splashFinished)
-                } else {
+        Group {
+            if identity.authenticated {
+                RootView(allowNotificationPrompt: splashFinished)
+            } else {
+                NavigationStack {
                     switch route {
                     case .login:
                         KutanaLoginView(
@@ -37,15 +37,15 @@ struct WelcomeFlow: View {
                         KutanaResetPasswordView(back: { route = .login })
                     }
                 }
+                .toolbar(.hidden, for: .navigationBar)
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showingPreview) {
-                NavigationStack {
-                    RootView()
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) {
-                            Button("Fermer") { showingPreview = false }
-                        }}
-                }
+        }
+        .sheet(isPresented: $showingPreview) {
+            NavigationStack {
+                RootView()
+                    .toolbar { ToolbarItem(placement: .topBarTrailing) {
+                        Button("Fermer") { showingPreview = false }
+                    }}
             }
         }
         .tint(KutanaTheme.blue)
@@ -156,13 +156,15 @@ private struct KutanaSplashView: View {
                 textOffset = 0
                 try? await Task.sleep(for: .milliseconds(350))
             } else {
+                let landingFeedback = UIImpactFeedbackGenerator(style: .rigid)
+                landingFeedback.prepare()
                 withAnimation(.spring(response: 0.68, dampingFraction: 0.63)) {
                     logoOffset = 0
                     logoScale = 1
                 }
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+                landingFeedback.impactOccurred(intensity: 1)
                 withAnimation(.easeOut(duration: 0.45)) {
                     textOpacity = 1
                     textOffset = 0
