@@ -61,13 +61,13 @@ private struct KutanaLogo: View {
     var body: some View {
         VStack(spacing: large ? 10 : 0) {
             HStack(spacing: 12) {
-                Image("kutana_mark")
+                Image("luka_mark")
                     .resizable()
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: large ? 23 : 17, style: .continuous))
                     .frame(width: large ? 110 : 68, height: large ? 110 : 68)
                 if !large {
-                    Text("KUTANA")
+                    Text("LUKA")
                         .font(.system(size: 30, weight: .heavy))
                         .foregroundStyle(KutanaTheme.ink)
                 }
@@ -78,7 +78,7 @@ private struct KutanaLogo: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("KUTANA")
+        .accessibilityLabel("LUKA")
     }
 }
 
@@ -290,6 +290,8 @@ private struct KutanaLoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
+    @FocusState private var loginField: LoginField?
+    private enum LoginField: Hashable { case email, password }
     @EnvironmentObject private var identity: KutanaSessionStore
     var body: some View {
         ScrollView {
@@ -300,10 +302,17 @@ private struct KutanaLoginView: View {
                     TextField("Adresse e-mail", text: $email)
                         .textContentType(.emailAddress).keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .submitLabel(.next).focused($loginField, equals: .email)
+                        .onSubmit { loginField = .password }
                     HStack {
                         Group { if showPassword { TextField("Mot de passe", text: $password) }
                         else { SecureField("Mot de passe", text: $password) } }
                         .textContentType(.password)
+                        .submitLabel(.go).focused($loginField, equals: .password)
+                        .onSubmit {
+                            guard identity.isConfigured, !identity.busy, !email.isEmpty, !password.isEmpty else { return }
+                            Task { await identity.signIn(email: email, password: password) }
+                        }
                         Button { showPassword.toggle() } label: {
                             Image(systemName: showPassword ? "eye" : "eye.slash")
                         }.accessibilityLabel(showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe")
@@ -352,7 +361,7 @@ private struct KutanaRegistrationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: back) { Image(systemName: "chevron.left").font(.title3) }
-                KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez KUTANA pour trouver un emploi, publier vos annonces et échanger facilement.")
+                KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez LUKA pour trouver un emploi, publier vos annonces et échanger facilement.")
                     .padding(.top, 33)
                 TextField("Nom et prénom", text: $fullName)
                     .textContentType(.name).textInputAutocapitalization(.words)

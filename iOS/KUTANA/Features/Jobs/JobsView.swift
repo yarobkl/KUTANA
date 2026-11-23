@@ -186,9 +186,13 @@ struct JobDetailView: View {
                 Divider()
                 Text("Description du poste").font(.title2.bold())
                 Text(job.description)
-                if identity.authenticated && !isMine && !preview {
+                if !isMine && !preview {
                     Button {
-                        Task { await toggleFavorite() }
+                        if identity.authenticated {
+                            Task { await toggleFavorite() }
+                        } else {
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        }
                     } label: {
                         Label(favorite ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: favorite ? "bookmark.fill" : "bookmark")
                     }.disabled(favoriteBusy)
