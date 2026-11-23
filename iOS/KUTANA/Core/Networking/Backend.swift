@@ -1,4 +1,13 @@
 import Foundation
+
+private struct ListingEditRequest: Encodable {
+    let p_listing: UUID
+    let p_category: String
+    let p_title: String
+    let p_description: String
+    let p_city: String
+    let p_price_xaf: Int64
+}
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -162,7 +171,7 @@ actor KutanaAPI {
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {
         try await get("listings", query: [
             URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,listing_images(storage_path)"),
-            URLQueryItem(name: "status", value: "eq.published"),
+            URLQueryItem(name: "status", value: "in.(published,sold)"),
             URLQueryItem(name: "order", value: "created_at.desc"),
             URLQueryItem(name: "limit", value: String(min(max(limit, 1), 50)))
         ])
@@ -289,6 +298,20 @@ actor KutanaAPI {
         guard kind == "job" || kind == "listing" else { throw BackendError.invalidResponse }
         return try await rpc(name: "withdraw_publication", body: [
             "p_kind": kind, "p_id": id.uuidString.lowercased()
+        ], accessToken: accessToken)
+    }
+
+    func editListing(id: UUID, input: ListingDraftInput, accessToken: String) async throws -> UUID {
+        let request = ListingEditRequest(p_listing: id, p_category: input.p_category,
+            p_title: input.p_title, p_description: input.p_description,
+            p_city: input.p_city, p_price_xaf: input.p_price_xaf)
+        return try await rpc(name: "edit_listing", body: request, accessToken: accessToken)
+    }
+
+    func changeListingStatus(id: UUID, status: String, accessToken: String) async throws -> UUID {
+        guard ["archived", "published", "sold"].contains(status) else { throw BackendError.invalidResponse }
+        return try await rpc(name: "change_listing_status", body: [
+            "p_listing": id.uuidString.lowercased(), "p_status": status
         ], accessToken: accessToken)
     }
 

@@ -353,30 +353,68 @@ struct MyPublicationsView: View {
                 }
             }
             Section("Petites annonces") {
-                ForEach(listings) { item in
-                    publicationRow(title: item.title, subtitle: "\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)",
-                                   status: item.status, kind: "listing", id: item.id)
-                    if item.status == "draft" {
-                        NavigationLink {
-                            ListingPhotoManagerView(listingID: item.id)
-                        } label: {
-                            Label("Gérer les photos · \(item.title)", systemImage: "photo.on.rectangle")
-                                .font(.subheadline)
-                        }
-                    }
+                ForEach(listings.filter { $0.status != "archived" }) { item in
+                    listingRow(item)
                 }
-                if listings.isEmpty && !loading {
+                if listings.allSatisfy({ $0.status == "archived" }) && !loading {
                     Text("Aucune annonce créée").foregroundStyle(.secondary)
                 }
             }
+            Section("Archives") {
+                ForEach(listings.filter { $0.status == "archived" }) { item in
+                    listingRow(item)
+                }
+            }
             Section {
-                Text("Les brouillons sont privés. Une publication en ligne est visible par tous. Vous pouvez la retirer à tout moment.")
+                Text("Les brouillons et archives sont privés. Une annonce vendue reste visible avec la mention « Vendu ».")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Mes publications")
         .refreshable { await load() }
         .task { await load() }
+    }
+
+    private func listingRow(_ item: ListingRecord) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(item.title).font(.headline)
+            Text("\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Text(statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            if item.status == "sold" {
+                Button("Retirer et archiver") {
+                    Task { await changeListing(id: item.id, status: "archived") }
+                }
+                .disabled(changingID != nil)
+            }
+            if item.status != "sold" {
+                NavigationLink("Modifier l'annonce") {
+                    ListingEditView(item: item) { Task { await load() } }
+                }
+                if item.status == "draft" {
+                    NavigationLink("Gérer les photos") { ListingPhotoManagerView(listingID: item.id) }
+                    Button("Mettre en ligne") {
+                        Task { await change(kind: "listing", id: item.id, publishing: true) }
+                    }
+                    .disabled(changingID != nil)
+                } else if item.status == "published" {
+                    Button("Marquer comme vendu") {
+                        Task { await changeListing(id: item.id, status: "sold") }
+                    }
+                    .disabled(changingID != nil)
+                    Button("Retirer et archiver") {
+                        Task { await changeListing(id: item.id, status: "archived") }
+                    }
+                    .disabled(changingID != nil)
+                } else if item.status == "archived" {
+                    Button("Remettre en ligne") {
+                        Task { await changeListing(id: item.id, status: "published") }
+                    }
+                    .disabled(changingID != nil)
+                }
+            }
+        }
+        .padding(.vertical, 5)
     }
 
     @ViewBuilder private func publicationRow(title: String, subtitle: String, status: String,
@@ -452,6 +490,94 @@ struct MyPublicationsView: View {
             errorMessage = publishing
                 ? "Impossible de publier. Votre adresse e-mail doit être vérifiée."
                 : "Impossible de retirer cette publication."
+        }
+    }
+
+    @MainActor private func changeListing(id: UUID, status: String) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Votre session a expiré."
+            return
+        }
+        changingID = id
+        errorMessage = nil
+        notice = nil
+        defer { changingID = nil }
+        do {
+            _ = try await KutanaAPI(configuration: configuration)
+                .changeListingStatus(id: id, status: status, accessToken: token)
+            await load()
+            notice = status == "sold" ? "Article marqué comme vendu." :
+                (status == "archived" ? "Annonce conservée dans vos archives." : "Annonce remise en ligne.")
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+        } catch {
+            errorMessage = "Impossible de modifier l'état de cette annonce. Réessayez."
+        }
+    }
+}
+
+private struct ListingEditView: View {
+    let item: ListingRecord
+    let onSaved: () -> Void
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var category: String
+    @State private var city: String
+    @State private var price: String
+    @State private var description: String
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    init(item: ListingRecord, onSaved: @escaping () -> Void) {
+        self.item = item
+        self.onSaved = onSaved
+        _title = State(initialValue: item.title)
+        _category = State(initialValue: item.category)
+        _city = State(initialValue: item.city)
+        _price = State(initialValue: String(item.price_xaf))
+        _description = State(initialValue: item.description)
+    }
+
+    var body: some View {
+        Form {
+            TextField("Titre de l'annonce", text: $title)
+            Picker("Catégorie", selection: $category) {
+                ForEach(["Téléphones", "Informatique", "Électroménager", "Meubles", "Véhicules", "Mode", "Maison", "Matériel professionnel", "Autres"], id: \.self) { Text($0) }
+            }
+            TextField("Ville", text: $city)
+            TextField("Prix en FCFA", text: $price).keyboardType(.numberPad)
+            TextField("Description", text: $description, axis: .vertical).lineLimit(5...12)
+            if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+            Button(saving ? "Enregistrement…" : "Enregistrer les modifications") {
+                Task { await save() }
+            }
+            .disabled(saving)
+        }
+        .navigationTitle("Modifier l'annonce")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @MainActor private func save() async {
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        do {
+            let input = try ListingDraftInput(category: category, title: title,
+                description: description, city: city, price: price)
+            guard let configuration = identity.configuration,
+                  let token = await identity.freshAccessToken() else {
+                errorMessage = "Votre session a expiré."
+                return
+            }
+            _ = try await KutanaAPI(configuration: configuration)
+                .editListing(id: item.id, input: input, accessToken: token)
+            onSaved()
+            NotificationCenter.default.post(name: Notification.Name("kutana-publications-changed"), object: nil)
+            dismiss()
+        } catch {
+            errorMessage = error is DraftValidationError ? error.localizedDescription :
+                "Impossible d'enregistrer les modifications."
         }
     }
 }

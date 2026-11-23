@@ -146,6 +146,9 @@ struct MarketView: View {
                 }
                 Text(KutanaFormat.xaf(item.price_xaf))
                     .font(.headline).foregroundStyle(KutanaTheme.blue)
+                if item.status == "sold" {
+                    Text("Vendu").font(.caption.bold()).foregroundStyle(.secondary)
+                }
                 Label("\(item.city) · \(item.category)", systemImage: "mappin")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -212,6 +215,10 @@ private struct ListingDetailView: View {
                 Text(item.title).font(.largeTitle.bold())
                 Text(KutanaFormat.xaf(item.price_xaf))
                     .font(.title2.bold()).foregroundStyle(KutanaTheme.blue)
+                if item.status == "sold" {
+                    Label("Article vendu", systemImage: "checkmark.circle.fill")
+                        .font(.headline).foregroundStyle(.secondary)
+                }
                 Label("\(item.city) · \(item.category)", systemImage: "mappin")
                     .foregroundStyle(.secondary)
                 Divider()
@@ -223,7 +230,10 @@ private struct ListingDetailView: View {
                 KutanaPrimaryButton(title: contacting ? "Ouverture…" : "Contacter le vendeur") {
                     Task { await contactSeller() }
                 }
-                .disabled(contacting || !identity.authenticated || isMine)
+                .disabled(contacting || !identity.authenticated || isMine || item.status == "sold")
+                if item.status == "sold" {
+                    Text("Cet article a été vendu.").font(.footnote).foregroundStyle(.secondary)
+                }
                 if !identity.authenticated {
                     Text("Connectez-vous pour contacter le vendeur en privé.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -276,7 +286,7 @@ private struct ListingDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Signaler", systemImage: "flag") { showReport = true }
-                    .disabled(!identity.authenticated || isMine)
+                    .disabled(!identity.authenticated || isMine || item.status == "sold")
             }
         }
         .sheet(isPresented: $showReport) {
