@@ -674,32 +674,40 @@ struct ListingPhotoUploader: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Jusqu'à 5 photos. La première sera utilisée pour présenter l'annonce.")
                 .font(.footnote).foregroundStyle(.secondary)
-            PhotosPicker(selection: $selected, maxSelectionCount: 5, matching: .images) {
-                Label(uploading ? "Ajout des photos…" : "Ajouter des photos", systemImage: "photo.badge.plus")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .disabled(uploading || images.count >= 5)
+            addPhotosButton
             if uploading { ProgressView("Importation sécurisée…") }
             if let errorMessage {
                 Text(errorMessage).font(.footnote).foregroundStyle(.red)
             }
             Text("\(images.count) photo(s) enregistrée(s)")
                 .font(.caption).foregroundStyle(.secondary)
-            ScrollView(.horizontal) {
-                HStack(spacing: 10) {
-                    ForEach(images) { item in
-                        if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
-                            ListingPhotoReplacement(url: url, revision: photoRevision, disabled: uploading) {
-                                Task { await replace($0, path: item.storage_path) }
-                            }
-                        }
-                    }
-                }
-            }
+            photoGallery
         }
         .task(id: listingID) { await load() }
         .onChange(of: selected) { _, items in
             Task { await upload(items) }
+        }
+    }
+
+    private var addPhotosButton: some View {
+        PhotosPicker(selection: $selected, maxSelectionCount: 5, matching: .images) {
+            Label(uploading ? "Ajout des photos…" : "Ajouter des photos", systemImage: "photo.badge.plus")
+                .font(.subheadline.weight(.semibold))
+        }
+        .disabled(uploading || images.count >= 5)
+    }
+
+    private var photoGallery: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 10) {
+                ForEach(images) { item in
+                    if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
+                        ListingPhotoReplacement(url: url, revision: photoRevision, disabled: uploading) { selected in
+                            Task { await replace(selected, path: item.storage_path) }
+                        }
+                    }
+                }
+            }
         }
     }
 
