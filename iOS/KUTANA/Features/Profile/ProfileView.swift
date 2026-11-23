@@ -9,9 +9,6 @@ struct ProfileView: View {
                     NavigationLink { KutanaAccountView() } label: {
                         Label("Compte connecté", systemImage: "envelope.badge.shield.half.filled")
                     }
-                    NavigationLink { NotificationsView() } label: {
-                        Label("Notifications", systemImage: "bell")
-                    }
                     NavigationLink { NotificationSettingsView() } label: {
                         Label("Réglages des notifications", systemImage: "slider.horizontal.3")
                     }

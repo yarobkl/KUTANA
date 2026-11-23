@@ -4,6 +4,10 @@ struct JobsView: View {
     let unreadCount: Int
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var query = ""
+    @State private var cityFilter: String?
+    @State private var contractFilter: String?
+    @State private var favoritesOnly = false
+    @State private var favoriteIDs: Set<UUID> = []
     @State private var records: [JobRecord] = []
     @State private var loading = false
     @State private var hasLoaded = false
@@ -22,22 +26,48 @@ struct JobsView: View {
 
     private var visible: [JobRecord] {
         let all = isPreview ? previewRecords : records
-        guard !query.isEmpty else { return all }
-        return all.filter { [$0.title, $0.company, $0.city, $0.contract_type]
-            .contains { $0.localizedCaseInsensitiveContains(query) } }
+        return all.filter { job in
+            (query.isEmpty || [job.title, job.company, job.city, job.contract_type]
+                .contains { $0.localizedCaseInsensitiveContains(query) }) &&
+            (cityFilter == nil || job.city == cityFilter) &&
+            (contractFilter == nil || job.contract_type == contractFilter) &&
+            (!favoritesOnly || favoriteIDs.contains(job.id))
+        }
     }
+
+    private var cities: [String] { Array(Set((isPreview ? previewRecords : records).map(\.city))).sorted() }
+    private var contracts: [String] { Array(Set((isPreview ? previewRecords : records).map(\.contract_type))).sorted() }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    KutanaFeatureHero(eyebrow: "Emploi au Congo",
-                                      title: "Votre prochain élan commence ici.",
-                                      subtitle: "Explorez les offres et suivez les métiers qui vous intéressent.",
-                                      symbol: "arrow.up.right")
+                    KutanaInlineSearch(text: $query, prompt: "Métier, entreprise ou ville")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            Menu {
+                                Button("Tous les lieux") { cityFilter = nil }
+                                ForEach(cities, id: \.self) { city in
+                                    Button(city) { cityFilter = city }
+                                }
+                            } label: { KutanaFilterChip(title: cityFilter ?? "Lieu", symbol: "chevron.down", active: cityFilter != nil) }
+                            Menu {
+                                Button("Tous les contrats") { contractFilter = nil }
+                                ForEach(contracts, id: \.self) { contract in
+                                    Button(contract) { contractFilter = contract }
+                                }
+                            } label: { KutanaFilterChip(title: contractFilter ?? "Contrat", symbol: "chevron.down", active: contractFilter != nil) }
+                            Button { favoritesOnly.toggle() } label: {
+                                KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "bookmark.fill" : "bookmark", active: favoritesOnly)
+                            }
+                            .disabled(!identity.authenticated)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
                 if isPreview {
                     Section {
                         Label("Aperçu de maquette · aucune de ces offres n'est réelle", systemImage: "info.circle")
@@ -87,26 +117,28 @@ struct JobsView: View {
                         }
                     }
                     if visible.isEmpty && !loading && hasLoaded {
-                        ContentUnavailableView.search(text: query)
+                        ContentUnavailableView("Aucune offre", systemImage: "briefcase",
+                            description: Text("Essayez d'autres critères de recherche."))
                     }
                 }
                 }
             }
             .listStyle(.insetGrouped)
-            .searchable(text: $query, prompt: "Métier, entreprise, ville…")
             .refreshable { await load() }
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
-                        .disabled(isPreview || loading).accessibilityLabel("Actualiser les offres")
+                ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { NotificationsView() } label: {
                         Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
                     }
                     .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
                 }
             }
-            .navigationTitle("KUTANA")
-            .task { await load() }
+            .navigationTitle("Emploi")
+            .navigationBarTitleDisplayMode(.large)
+            .task { await load(); await loadFavorites() }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-favorites-changed"))) { _ in
+                Task { await loadFavorites() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
                 Task { await load() }
             }
@@ -119,6 +151,14 @@ struct JobsView: View {
         defer { loading = false; hasLoaded = true }
         do { records = try await KutanaAPI(configuration: configuration).publishedJobs() }
         catch { errorMessage = "Impossible de charger les offres. Réessayez." }
+    }
+
+    @MainActor private func loadFavorites() async {
+        guard identity.authenticated, let config = identity.configuration,
+              let token = await identity.freshAccessToken() else { favoriteIDs = []; return }
+        if let favorites = try? await KutanaAPI(configuration: config).favorites(accessToken: token) {
+            favoriteIDs = Set(favorites.map(\.job_id))
+        }
     }
 }
 
@@ -209,6 +249,7 @@ struct JobDetailView: View {
                 }
             }
             favorite.toggle(); errorMessage = nil
+            NotificationCenter.default.post(name: Notification.Name("kutana-favorites-changed"), object: nil)
         } catch { errorMessage = "Impossible de modifier les favoris." }
     }
 

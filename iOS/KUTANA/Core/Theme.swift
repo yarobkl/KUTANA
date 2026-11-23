@@ -100,6 +100,58 @@ struct KutanaPrimaryButton: View {
     }
 }
 
+/// Compact, functional discovery controls shared only by Emploi and Annonces.
+struct KutanaInlineSearch: View {
+    @Binding var text: String
+    let prompt: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Effacer la recherche")
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 48)
+        .background(Color(uiColor: .secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .strokeBorder(Color(uiColor: .separator).opacity(0.38), lineWidth: 0.5))
+    }
+}
+
+struct KutanaFilterChip: View {
+    let title: String
+    let symbol: String
+    let active: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if symbol == "chevron.down" {
+                Text(title)
+                Image(systemName: symbol).font(.caption.weight(.semibold))
+            } else {
+                Image(systemName: symbol)
+                Text(title)
+            }
+        }
+        .font(.subheadline.weight(active ? .semibold : .regular))
+        .foregroundStyle(active ? KutanaTheme.blue : Color.primary)
+        .padding(.horizontal, 15)
+        .frame(minHeight: 38)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+        .overlay(Capsule().strokeBorder(active ? KutanaTheme.blue : Color(uiColor: .separator).opacity(0.5), lineWidth: 1))
+    }
+}
+
 /// A restrained, one-time reveal for each main tab. The native TabView keeps its stacks.
 struct KutanaTabEntrance: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

@@ -1,9 +1,12 @@
 import SwiftUI
 
 struct MarketView: View {
+    let unreadCount: Int
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var listings: [ListingRecord] = []
     @State private var category = "Toutes"
+    @State private var cityFilter: String?
+    @State private var priceLimit: Int64?
     @State private var query = ""
     @State private var loading = false
     @State private var hasLoaded = false
@@ -14,22 +17,33 @@ struct MarketView: View {
     private var visible: [ListingRecord] {
         listings.filter { item in
             let matchesCategory = category == "Toutes" || item.category == category
-            let matchesQuery = query.isEmpty || [item.title, item.city, item.description]
+            let matchesQuery = query.isEmpty || [item.title, item.category, item.city, item.description]
                 .contains { $0.localizedCaseInsensitiveContains(query) }
-            return matchesCategory && matchesQuery
+            return matchesCategory && matchesQuery &&
+                (cityFilter == nil || item.city == cityFilter) &&
+                (priceLimit.map { item.price_xaf <= $0 } ?? true)
         }
     }
+
+    private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
 
     var body: some View {
         NavigationStack {
             List {
-                introduction
-                categorySection
+                discoveryControls
                 resultsSection
             }
-            .searchable(text: $query, prompt: "Article, ville, description…")
             .sensoryFeedback(.selection, trigger: category)
             .navigationTitle("Annonces")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { NotificationsView() } label: {
+                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    }
+                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
@@ -38,47 +52,41 @@ struct MarketView: View {
         }
     }
 
-    private var introduction: some View {
+    private var discoveryControls: some View {
         Section {
-            KutanaFeatureHero(eyebrow: "Annonces",
-                              title: "Les bonnes trouvailles sont près de vous.",
-                              subtitle: "Achetez, vendez et échangez directement au Congo.",
-                              symbol: "tag")
-        }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
-    }
-
-    private var categorySection: some View {
-        Section {
+            KutanaInlineSearch(text: $query, prompt: "Article, catégorie ou ville")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(categories, id: \.self) { option in
-                        categoryButton(option)
+                    Menu {
+                        ForEach(categories, id: \.self) { option in
+                            Button(option) { category = option }
+                        }
+                    } label: {
+                        KutanaFilterChip(title: category == "Toutes" ? "Catégorie" : category,
+                                         symbol: "chevron.down", active: category != "Toutes")
+                    }
+                    Menu {
+                        Button("Tous les lieux") { cityFilter = nil }
+                        ForEach(cities, id: \.self) { city in
+                            Button(city) { cityFilter = city }
+                        }
+                    } label: { KutanaFilterChip(title: cityFilter ?? "Lieu", symbol: "chevron.down", active: cityFilter != nil) }
+                    Menu {
+                        Button("Tous les prix") { priceLimit = nil }
+                        ForEach([Int64(50_000), 100_000, 250_000, 500_000], id: \.self) { amount in
+                            Button("Jusqu'à \(KutanaFormat.xaf(amount))") { priceLimit = amount }
+                        }
+                    } label: {
+                        KutanaFilterChip(title: priceLimit.map { "≤ \(KutanaFormat.xaf($0))" } ?? "Prix",
+                                         symbol: "chevron.down", active: priceLimit != nil)
                     }
                 }
-                .padding(.vertical, 3)
+                .padding(.vertical, 2)
             }
-        } header: {
-            Text("Explorer par catégorie")
         }
-    }
-
-    private func categoryButton(_ option: String) -> some View {
-        let selected = category == option
-        return Button {
-            withAnimation(KutanaMotion.quick) { category = option }
-        } label: {
-            Text(option)
-                .font(.subheadline.weight(selected ? .semibold : .medium))
-                .foregroundStyle(selected ? Color.white : Color.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(selected ? KutanaTheme.blue : Color(.secondarySystemGroupedBackground),
-                            in: Capsule())
-        }
-        .buttonStyle(KutanaPressStyle())
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
     }
 
     private var resultsSection: some View {
@@ -101,9 +109,9 @@ struct MarketView: View {
                 }
                 if visible.isEmpty && !loading && hasLoaded {
                     ContentUnavailableView("Aucune annonce", systemImage: "tag",
-                        description: Text(identity.isConfigured ?
-                            "Les annonces publiées apparaîtront ici." :
-                            "La nouvelle base KUTANA n'est pas encore connectée."))
+                        description: Text(category != "Toutes" || cityFilter != nil || priceLimit != nil || !query.isEmpty ?
+                            "Essayez d'autres critères de recherche." :
+                            "Les annonces publiées apparaîtront ici."))
                 }
             }
         }
