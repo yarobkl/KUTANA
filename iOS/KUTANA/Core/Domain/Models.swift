@@ -154,3 +154,16 @@ struct LukaComment: Decodable, Identifiable, Sendable {
 struct LukaCommentSetting: Decodable, Sendable {
     let enabled: Bool
 }
+
+struct LukaPrivateProfile: Codable, Sendable {
+    let user_id: UUID
+    let first_name: String
+    let last_name: String
+    let birth_date: String
+    let phone_e164: String
+    let phone_region: String
+    let country_code: String
+    let city: String
+    let commune: String
+    let share_location_with_recruiters: Bool
+}

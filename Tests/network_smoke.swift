@@ -79,6 +79,18 @@ final class StubProtocol: URLProtocol {
         assert(!enabled)
         try await commentAPI.addComment(kind: "job", contentID: commentID, parentID: nil,
                                         body: "Bonjour", accessToken: "test-token")
+        let profileAPI = KutanaAPI(configuration: config, session: session)
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/luka_private_profiles")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer profile-token")
+            return (200, Data(request.httpMethod == "GET" ? "[]".utf8 : "{}".utf8))
+        }
+        let missingProfile = try await profileAPI.privateProfile(accessToken: "profile-token")
+        assert(missingProfile == nil)
+        let profile = LukaPrivateProfile(user_id: commentID, first_name: "Marie", last_name: "Test",
+            birth_date: "1990-01-01", phone_e164: "+242061234567", phone_region: "CG",
+            country_code: "CG", city: "Brazzaville", commune: "Bacongo", share_location_with_recruiters: false)
+        try await profileAPI.savePrivateProfile(profile, accessToken: "profile-token")
         print("Auth/network smoke tests: OK")
     }
 }

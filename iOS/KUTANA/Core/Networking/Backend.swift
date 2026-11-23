@@ -79,6 +79,27 @@ actor KutanaAPI {
         self.decoder = decoder
     }
 
+    func privateProfile(accessToken: String) async throws -> LukaPrivateProfile? {
+        let rows: [LukaPrivateProfile] = try await get("luka_private_profiles", query: [
+            URLQueryItem(name: "select", value: "user_id,first_name,last_name,birth_date,phone_e164,phone_region,country_code,city,commune,share_location_with_recruiters"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return rows.first
+    }
+
+    func savePrivateProfile(_ profile: LukaPrivateProfile, accessToken: String) async throws {
+        try await write("luka_private_profiles", method: "POST",
+                        query: [URLQueryItem(name: "on_conflict", value: "user_id")],
+                        body: [
+                            "user_id": profile.user_id.uuidString.lowercased(),
+                            "first_name": profile.first_name, "last_name": profile.last_name,
+                            "birth_date": profile.birth_date, "phone_e164": profile.phone_e164,
+                            "phone_region": profile.phone_region, "country_code": profile.country_code,
+                            "city": profile.city, "commune": profile.commune,
+                            "share_location_with_recruiters": profile.share_location_with_recruiters
+                        ], accessToken: accessToken, prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
     func publicComments(kind: String, contentID: UUID) async throws -> [LukaComment] {
         try await get("luka_comments", query: [
             URLQueryItem(name: "select", value: "id,kind,content_id,parent_id,author_id,author_name,body,created_at,deleted_at"),
