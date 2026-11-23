@@ -11,7 +11,6 @@ struct WelcomeFlow: View {
     @AppStorage("kutana.hasSeenIntroduction") private var hasSeenIntroduction = false
     @State private var route: WelcomePage = .login
     @State private var splashFinished = false
-    @State private var showingPreview = false
 
     var body: some View {
         Group {
@@ -23,8 +22,7 @@ struct WelcomeFlow: View {
                     case .login:
                         KutanaLoginView(
                             createAccount: { route = .registration },
-                            resetPassword: { route = .reset },
-                            preview: { showingPreview = true }
+                            resetPassword: { route = .reset }
                         )
                     case .introduction:
                         KutanaIntroductionView(
@@ -38,14 +36,6 @@ struct WelcomeFlow: View {
                     }
                 }
                 .toolbar(.hidden, for: .navigationBar)
-            }
-        }
-        .sheet(isPresented: $showingPreview) {
-            NavigationStack {
-                RootView()
-                    .toolbar { ToolbarItem(placement: .topBarTrailing) {
-                        Button("Fermer") { showingPreview = false }
-                    }}
             }
         }
         .tint(KutanaTheme.blue)
@@ -79,11 +69,11 @@ private struct KutanaLogo: View {
                 Image("kutana_mark")
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: large ? 23 : 12, style: .continuous))
-                    .frame(width: large ? 110 : 48, height: large ? 110 : 48)
+                    .clipShape(RoundedRectangle(cornerRadius: large ? 23 : 17, style: .continuous))
+                    .frame(width: large ? 110 : 68, height: large ? 110 : 68)
                 if !large {
                     Text("KUTANA")
-                        .font(.system(size: 25, weight: .heavy))
+                        .font(.system(size: 30, weight: .heavy))
                         .foregroundStyle(KutanaTheme.ink)
                 }
             }
@@ -265,7 +255,6 @@ private struct KutanaAuthHeader: View {
 private struct KutanaLoginView: View {
     let createAccount: () -> Void
     let resetPassword: () -> Void
-    let preview: () -> Void
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
@@ -311,8 +300,6 @@ private struct KutanaLoginView: View {
                     Text("Vous n'avez pas encore de compte ?").foregroundStyle(.secondary)
                     Button("Créer un compte", action: createAccount).fontWeight(.semibold)
                 }.font(.system(size: 12)).padding(.top, 30)
-                Button("Prévisualiser l'application sans compte", action: preview)
-                    .font(.footnote).padding(.top, 26)
             }.padding(.horizontal, 25)
         }
         .background(.white)
