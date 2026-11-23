@@ -141,11 +141,12 @@ struct KutanaAccountView: View {
 struct NotificationSettingsView: View {
     @EnvironmentObject private var identity: KutanaSessionStore
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var messages = true
     @State private var jobs = true
     @State private var errorMessage: String?
     @State private var saved = false
-    @State private var systemPermission = ""
+    @State private var authorizationStatus: UNAuthorizationStatus?
 
     var body: some View {
         Form {
@@ -160,13 +161,31 @@ struct NotificationSettingsView: View {
             } footer: {
                 Text("Les notifications sont visibles dans KUTANA. Les alertes iPhone lorsque l'app est fermée nécessitent encore la configuration des notifications distantes.")
             }
-            Section("Alertes iPhone") {
-                Button("Autoriser les alertes sur cet iPhone") { Task { await requestSystemPermission() } }
-                if !systemPermission.isEmpty { Text(systemPermission).font(.footnote).foregroundStyle(.secondary) }
+            Section("Notifications iPhone") {
+                if let authorizationStatus {
+                    switch authorizationStatus {
+                    case .authorized, .provisional, .ephemeral:
+                        Label("Autorisées sur cet iPhone", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    case .denied:
+                        Label("Désactivées sur cet iPhone", systemImage: "bell.slash")
+                        Button("Ouvrir les réglages iPhone") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                        }
+                    case .notDetermined:
+                        Button("Activer les notifications iPhone") { Task { await requestSystemPermission() } }
+                    @unknown default:
+                        Text("État des notifications indisponible").foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .navigationTitle("Réglages des notifications")
         .task { await load() }
+        .task { await refreshSystemPermission() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshSystemPermission() } }
+        }
     }
 
     @MainActor private func load() async {
@@ -186,17 +205,20 @@ struct NotificationSettingsView: View {
         } catch { errorMessage = "Impossible d'enregistrer les préférences." }
     }
 
+    @MainActor private func refreshSystemPermission() async {
+        authorizationStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
     @MainActor private func requestSystemPermission() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
-        if settings.authorizationStatus == .denied {
-            systemPermission = "Modifiez l'autorisation dans les réglages de l'iPhone."
-            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+        guard settings.authorizationStatus == .notDetermined else {
+            authorizationStatus = settings.authorizationStatus
             return
         }
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-            systemPermission = granted ? "Alertes autorisées sur cet iPhone." : "Alertes refusées sur cet iPhone."
-        } catch { systemPermission = "L'autorisation n'a pas pu être demandée." }
+            _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            await refreshSystemPermission()
+        } catch { await refreshSystemPermission() }
     }
 }
