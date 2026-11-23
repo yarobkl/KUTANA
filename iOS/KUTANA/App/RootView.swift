@@ -87,53 +87,41 @@ struct PublishView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Que souhaitez-vous publier ?")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
-
-                Section("Créer une publication") {
                     NavigationLink {
                         JobDraftFormView()
                     } label: {
-                        publishOption("Offre d’emploi", subtitle: "Recruter un candidat", symbol: "briefcase")
+                        publishOption("Offre d’emploi", symbol: "briefcase")
                     }
                     NavigationLink {
                         ListingDraftFormView()
                     } label: {
-                        publishOption("Petite annonce", subtitle: "Vendre un bien ou un service", symbol: "tag")
+                        publishOption("Petite annonce", symbol: "tag")
                     }
                 }
 
-                Section("Votre espace") {
+                Section {
                     NavigationLink {
                         MyPublicationsView()
                     } label: {
-                        Label("Mes publications", systemImage: "square.stack")
+                        publishOption("Mes publications", symbol: "square.stack")
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Publier")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Créer")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
-    private func publishOption(_ title: String, subtitle: String, symbol: String) -> some View {
+    private func publishOption(_ title: String, symbol: String) -> some View {
         HStack(spacing: 15) {
             Image(systemName: symbol)
                 .font(.system(size: 23, weight: .regular))
                 .foregroundStyle(KutanaTheme.blue)
                 .frame(width: 30)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline).foregroundStyle(.primary)
-                Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 5)
+            Text(title).font(.headline).foregroundStyle(.primary)
+                .padding(.vertical, 12)
         }
         .accessibilityElement(children: .combine)
     }
