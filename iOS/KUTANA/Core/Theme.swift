@@ -194,8 +194,7 @@ struct KutanaTabEntrance: ViewModifier {
                 if reduceMotion { visible = true }
                 else { withAnimation(.easeOut(duration: 0.24)) { visible = true } }
             }
-            .onDisappear { visible = false }
-    }
+        }
 }
 
 struct KutanaFeatureHero: View {
