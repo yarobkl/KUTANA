@@ -361,9 +361,17 @@ private struct ListingDetailView: View {
     }
 
     @MainActor private func contactSeller() async {
-        guard let configuration = identity.configuration,
-              let token = await identity.freshAccessToken() else {
-            errorMessage = "Connectez-vous pour contacter le vendeur."
+        guard let configuration = identity.configuration else {
+            errorMessage = "Le service est momentanément indisponible."
+            return
+        }
+        guard let token = await identity.freshAccessToken() else {
+            if !identity.authenticated {
+                resumeContactAfterLogin = true
+                NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+            } else {
+                errorMessage = "Connexion indisponible. Réessayez."
+            }
             return
         }
         contacting = true

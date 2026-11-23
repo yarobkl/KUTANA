@@ -312,9 +312,17 @@ struct JobDetailView: View {
     }
 
     @MainActor private func apply() async {
-        guard let configuration = identity.configuration,
-              let token = await identity.freshAccessToken() else {
-            errorMessage = "Connectez-vous avant de postuler."
+        guard let configuration = identity.configuration else {
+            errorMessage = "Le service est momentanément indisponible."
+            return
+        }
+        guard let token = await identity.freshAccessToken() else {
+            if !identity.authenticated {
+                pendingAction = .application
+                NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+            } else {
+                errorMessage = "Connexion indisponible. Réessayez."
+            }
             return
         }
         sending = true; errorMessage = nil
