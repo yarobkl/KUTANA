@@ -109,7 +109,7 @@ struct PublishView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Créer")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 
