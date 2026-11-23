@@ -92,11 +92,13 @@ struct MarketView: View {
                     .buttonStyle(.plain)
                 }
                 .padding(.vertical, 2)
+                .padding(.horizontal, 16)
             }
+            .listRowInsets(EdgeInsets())
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
     }
 
     private var resultsSection: some View {
