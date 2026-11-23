@@ -241,6 +241,12 @@ struct JobDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: "\(job.title) — \(job.company) · \(job.city) · \(job.contract_type)") {
+                    Label("Partager l'offre", systemImage: "square.and.arrow.up")
+                }
+                .disabled(preview)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Signaler", systemImage: "flag") { showReport = true }
                     .disabled(preview || !identity.authenticated || isMine)
             }

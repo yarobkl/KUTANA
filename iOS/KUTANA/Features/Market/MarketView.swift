@@ -319,6 +319,11 @@ private struct ListingDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: "\(item.title) — \(KutanaFormat.xaf(item.price_xaf)) · \(item.city)") {
+                    Label("Partager l'annonce", systemImage: "square.and.arrow.up")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
                        systemImage: isFavorite ? "heart.fill" : "heart") {
                     if identity.authenticated { toggleFavorite() }
