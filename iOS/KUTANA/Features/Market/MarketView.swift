@@ -8,6 +8,8 @@ struct MarketView: View {
     @State private var cityFilter: String?
     @State private var priceLimit: Int64?
     @State private var query = ""
+    @State private var favoritesOnly = false
+    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
     @State private var loading = false
     @State private var hasLoaded = false
     @State private var errorMessage: String?
@@ -21,9 +23,12 @@ struct MarketView: View {
                 .contains { $0.localizedCaseInsensitiveContains(query) }
             return matchesCategory && matchesQuery &&
                 (cityFilter == nil || item.city == cityFilter) &&
-                (priceLimit.map { item.price_xaf <= $0 } ?? true)
+                (priceLimit.map { item.price_xaf <= $0 } ?? true) &&
+                (!favoritesOnly || favoriteIDs.contains(item.id.uuidString.lowercased()))
         }
     }
+
+    private var favoriteIDs: Set<String> { Set(savedFavorites.split(separator: ",").map(String.init)) }
 
     private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
 
@@ -80,6 +85,10 @@ struct MarketView: View {
                         KutanaFilterChip(title: priceLimit.map { "≤ \(KutanaFormat.xaf($0))" } ?? "Prix",
                                          symbol: "chevron.down", active: priceLimit != nil)
                     }
+                    Button { favoritesOnly.toggle() } label: {
+                        KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "heart.fill" : "heart", active: favoritesOnly)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.vertical, 2)
             }
@@ -127,7 +136,14 @@ struct MarketView: View {
         return HStack(spacing: 14) {
             KutanaListingPhoto(url: url)
             VStack(alignment: .leading, spacing: 5) {
-                Text(item.title).font(.headline)
+                HStack {
+                    Text(item.title).font(.headline)
+                    if favoriteIDs.contains(item.id.uuidString.lowercased()) {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(KutanaTheme.blue)
+                            .accessibilityLabel("En favori")
+                    }
+                }
                 Text(KutanaFormat.xaf(item.price_xaf))
                     .font(.headline).foregroundStyle(KutanaTheme.blue)
                 Label("\(item.city) · \(item.category)", systemImage: "mappin")
@@ -159,20 +175,39 @@ private struct ListingDetailView: View {
     @State private var errorMessage: String?
     @State private var showReport = false
     @State private var photos: [ListingImageRecord] = []
+    @State private var photoIndex = 0
+    @State private var showingAlbum = false
+    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
+
+    private var photoURLs: [URL] {
+        let paths = photos.isEmpty ? (item.listing_images ?? []).map(\.storage_path) :
+            photos.sorted { $0.sort_order < $1.sort_order }.map(\.storage_path)
+        return paths.compactMap { identity.configuration?.publicListingImageURL(path: $0) }
+    }
+
+    private var isFavorite: Bool {
+        savedFavorites.split(separator: ",").contains(Substring(item.id.uuidString.lowercased()))
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                if !photos.isEmpty {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 10) {
-                            ForEach(photos) { photo in
-                                if let url = identity.configuration?.publicListingImageURL(path: photo.storage_path) {
-                                    KutanaListingPhoto(url: url, width: 285, height: 225)
+                if !photoURLs.isEmpty {
+                    GeometryReader { geometry in
+                        TabView(selection: $photoIndex) {
+                            ForEach(photoURLs.indices, id: \.self) { index in
+                                Button { showingAlbum = true } label: {
+                                    KutanaListingPhoto(url: photoURLs[index], width: geometry.size.width, height: 270)
                                 }
+                                .buttonStyle(.plain)
+                                .tag(index)
+                                .accessibilityLabel("Ouvrir la photo \(index + 1) sur \(photoURLs.count)")
                             }
                         }
+                        .tabViewStyle(.page(indexDisplayMode: photoURLs.count > 1 ? .always : .never))
                     }
+                    .frame(height: 280)
+                    .accessibilityHint("Balayez pour parcourir les photos")
                 }
                 Text(item.title).font(.largeTitle.bold())
                 Text(KutanaFormat.xaf(item.price_xaf))
@@ -204,8 +239,41 @@ private struct ListingDetailView: View {
                 KutanaChatView(conversationID: conversationID)
             }
         }
+        .fullScreenCover(isPresented: $showingAlbum) {
+            ZStack(alignment: .topTrailing) {
+                Color.black.ignoresSafeArea()
+                TabView(selection: $photoIndex) {
+                    ForEach(photoURLs.indices, id: \.self) { index in
+                        AsyncImage(url: photoURLs[index]) { image in
+                            image.resizable().scaledToFit()
+                        } placeholder: {
+                            ProgressView().tint(.white)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page)
+                Button("Fermer", systemImage: "xmark") { showingAlbum = false }
+                    .labelStyle(.iconOnly)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                    .padding(24)
+                    .accessibilityLabel("Fermer l'album")
+            }
+            .overlay(alignment: .bottom) {
+                Text("\(photoIndex + 1) / \(photoURLs.count)")
+                    .foregroundStyle(.white)
+                    .padding(.bottom, 30)
+            }
+        }
         .task { await loadPhotos() }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
+                       systemImage: isFavorite ? "heart.fill" : "heart") { toggleFavorite() }
+                    .accessibilityLabel(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Signaler", systemImage: "flag") { showReport = true }
                     .disabled(!identity.authenticated || isMine)
@@ -215,6 +283,13 @@ private struct ListingDetailView: View {
             ReportContentSheet(kind: "listing", contentID: item.id)
                 .environmentObject(identity)
         }
+    }
+
+    private func toggleFavorite() {
+        var ids = Set(savedFavorites.split(separator: ",").map(String.init))
+        let id = item.id.uuidString.lowercased()
+        if !ids.insert(id).inserted { ids.remove(id) }
+        savedFavorites = ids.sorted().joined(separator: ",")
     }
 
 
