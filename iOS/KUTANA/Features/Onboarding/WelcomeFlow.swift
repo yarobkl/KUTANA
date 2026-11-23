@@ -95,7 +95,7 @@ private struct KutanaSplashView: View {
     @State private var letteringProgress: CGFloat = 0
     @State private var subtitleOpacity: Double = 0
     @State private var subtitleOffset: CGFloat = 9
-    private let brandName = "KUTANA"
+    private let brandName = "BILOKO’S"
 
     var body: some View {
         GeometryReader { proxy in
@@ -113,14 +113,20 @@ private struct KutanaSplashView: View {
                     .ignoresSafeArea(edges: .bottom)
 
                 VStack(spacing: 19) {
-                    Image("kutana_mark")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: side, height: side)
-                        .clipShape(RoundedRectangle(cornerRadius: side * 0.23, style: .continuous))
-                        .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
-                        .offset(y: logoOffset)
-                        .scaleEffect(logoScale)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: side * 0.23, style: .continuous)
+                            .fill(KutanaTheme.blue.gradient)
+                        Text("BLK")
+                            .font(.system(size: side * 0.35, weight: .black, design: .rounded))
+                            .tracking(-1.5)
+                            .foregroundStyle(.white)
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(1)
+                    }
+                    .frame(width: side, height: side)
+                    .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
+                    .offset(y: logoOffset)
+                    .scaleEffect(logoScale)
 
                     VStack(spacing: 8) {
                         Text(brandName)
@@ -136,7 +142,7 @@ private struct KutanaSplashView: View {
                             }
                             .accessibilityLabel(brandName)
 
-                        Text("Emploi · Annonces · Congo")
+                        Text("Le marché des opportunités")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
@@ -181,13 +187,13 @@ private struct KutanaSplashView: View {
                     subtitleOpacity = 1
                     subtitleOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(1600))
+                try? await Task.sleep(for: .milliseconds(2100))
             }
             guard !Task.isCancelled else { return }
             onFinished()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("KUTANA. Emploi, annonces, Congo.")
+        .accessibilityLabel("BLK. BILOKO’S. Le marché des opportunités.")
     }
 }
 
