@@ -87,7 +87,10 @@ struct MarketView: View {
                         KutanaFilterChip(title: priceLimit.map { "≤ \(KutanaFormat.xaf($0))" } ?? "Prix",
                                          symbol: "chevron.down", active: priceLimit != nil)
                     }
-                    Button { favoritesOnly.toggle() } label: {
+                    Button {
+                        if identity.authenticated { favoritesOnly.toggle() }
+                        else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                    } label: {
                         KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "heart.fill" : "heart", active: favoritesOnly)
                     }
                     .buttonStyle(.plain)
@@ -291,7 +294,10 @@ private struct ListingDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
-                       systemImage: isFavorite ? "heart.fill" : "heart") { toggleFavorite() }
+                       systemImage: isFavorite ? "heart.fill" : "heart") {
+                    if identity.authenticated { toggleFavorite() }
+                    else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                }
                     .accessibilityLabel(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris")
             }
             ToolbarItem(placement: .topBarTrailing) {
