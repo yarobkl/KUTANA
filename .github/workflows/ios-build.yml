@@ -67,6 +67,16 @@ jobs:
           cd "$RUNNER_TEMP/KUTANADerivedData/Build/Products/Debug-iphonesimulator"
           test -d KUTANA.app
           zip -qry "$RUNNER_TEMP/KUTANA-simulator-app.zip" KUTANA.app
+      - name: Test guest navigation on iPhone
+        if: success() && github.event_name == 'workflow_dispatch'
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project KUTANA.xcodeproj -scheme KUTANA -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -derivedDataPath "$RUNNER_TEMP/KUTANADerivedData" \
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/luka-uitests.log"
       - name: Capture guest home on available iPhones
         if: success() && github.event_name == 'workflow_dispatch'
         timeout-minutes: 15

@@ -57,11 +57,26 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         DEVELOPMENT_TEAM: UK4UQCQ57G
+  KUTANAUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: KUTANA
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: KUTANA
 schemes:
   KUTANA:
     build:
       targets:
         KUTANA: all
+    test:
+      targets:
+        - KUTANAUITests
     run:
       config: Debug
     archive:
