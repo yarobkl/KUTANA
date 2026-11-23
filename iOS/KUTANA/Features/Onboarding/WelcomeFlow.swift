@@ -94,6 +94,8 @@ private struct KutanaSplashView: View {
     @State private var logoScale: CGFloat = 0.82
     @State private var textOpacity = 0.0
     @State private var textOffset: CGFloat = 14
+    @State private var revealedLetters = 0
+    private let brandName = "KUTANA"
 
     var body: some View {
         GeometryReader { proxy in
@@ -120,17 +122,23 @@ private struct KutanaSplashView: View {
                         .scaleEffect(logoScale)
 
                     VStack(spacing: 8) {
-                        Text("KUTANA")
-                            .font(.system(size: 32, weight: .black))
-                            .tracking(2)
-                            .foregroundStyle(KutanaTheme.ink)
+                        ZStack {
+                            Text(brandName).hidden()
+                            Text(String(brandName.prefix(revealedLetters)))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .font(.system(size: 32, weight: .black))
+                        .tracking(2)
+                        .foregroundStyle(KutanaTheme.ink)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .accessibilityLabel(brandName)
                         Text("Emploi · Annonces · Congo")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
                     }
-                    .opacity(textOpacity)
+                    .opacity(revealedLetters > 0 || reduceMotion ? 1 : 0)
                     .offset(y: textOffset)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -144,6 +152,7 @@ private struct KutanaSplashView: View {
                 logoScale = 1
                 textOpacity = 1
                 textOffset = 0
+                revealedLetters = brandName.count
                 try? await Task.sleep(for: .milliseconds(350))
             } else {
                 let landingFeedback = UIImpactFeedbackGenerator(style: .rigid)
@@ -155,11 +164,18 @@ private struct KutanaSplashView: View {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
                 landingFeedback.impactOccurred(intensity: 1)
-                withAnimation(.easeOut(duration: 0.45)) {
-                    textOpacity = 1
+                withAnimation(.easeOut(duration: 0.3)) {
                     textOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(1400))
+                for count in 1...brandName.count {
+                    guard !Task.isCancelled else { return }
+                    revealedLetters = count
+                    try? await Task.sleep(for: .milliseconds(105))
+                }
+                withAnimation(.easeOut(duration: 0.3)) {
+                    textOpacity = 1
+                }
+                try? await Task.sleep(for: .milliseconds(500))
             }
             guard !Task.isCancelled else { return }
             onFinished()
