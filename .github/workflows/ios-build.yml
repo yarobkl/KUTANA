@@ -69,6 +69,7 @@ jobs:
           zip -qry "$RUNNER_TEMP/KUTANA-simulator-app.zip" KUTANA.app
       - name: Capture guest home on available iPhones
         if: success()
+        timeout-minutes: 8
         shell: bash
         run: |
           set -euo pipefail
