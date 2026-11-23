@@ -87,35 +87,55 @@ struct PublishView: View {
         NavigationStack {
             List {
                 Section {
-                    KutanaFeatureHero(eyebrow: "Publier sur KUTANA",
-                                      title: "Une idée, une offre, une rencontre.",
-                                      subtitle: "Préparez votre publication, puis partagez-la quand elle est prête.",
-                                      symbol: "plus")
+                    Text("Que souhaitez-vous publier ?")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
-                Section {
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 2, trailing: 20))
+
+                Section("Créer une publication") {
+                    NavigationLink {
+                        JobDraftFormView()
+                    } label: {
+                        publishOption("Offre d’emploi", subtitle: "Recruter un candidat", symbol: "briefcase")
+                    }
+                    NavigationLink {
+                        ListingDraftFormView()
+                    } label: {
+                        publishOption("Petite annonce", subtitle: "Vendre un bien ou un service", symbol: "tag")
+                    }
+                }
+
+                Section("Votre espace") {
                     NavigationLink {
                         MyPublicationsView()
                     } label: {
                         Label("Mes publications", systemImage: "square.stack")
                     }
                 }
-                Section("Créer un brouillon") {
-                    NavigationLink {
-                        JobDraftFormView()
-                    } label: {
-                        Label("Offre d’emploi", systemImage: "briefcase")
-                    }
-                    NavigationLink {
-                        ListingDraftFormView()
-                    } label: {
-                        Label("Petite annonce", systemImage: "tag")
-                    }
-                }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Publier")
+            .navigationBarTitleDisplayMode(.large)
         }
+    }
+
+    private func publishOption(_ title: String, subtitle: String, symbol: String) -> some View {
+        HStack(spacing: 15) {
+            Image(systemName: symbol)
+                .font(.system(size: 23, weight: .regular))
+                .foregroundStyle(KutanaTheme.blue)
+                .frame(width: 30)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline).foregroundStyle(.primary)
+                Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 5)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
