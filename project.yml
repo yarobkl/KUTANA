@@ -25,7 +25,7 @@ targets:
     info:
       path: iOS/KUTANA/Info.plist
       properties:
-        CFBundleDisplayName: KUTANA
+        CFBundleDisplayName: LUKA
         CFBundleDevelopmentRegion: fr
         CFBundleLocalizations:
           - fr

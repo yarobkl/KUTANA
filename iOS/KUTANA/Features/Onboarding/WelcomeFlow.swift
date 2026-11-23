@@ -91,7 +91,7 @@ private struct KutanaSplashView: View {
     @State private var subtitleOpacity: Double = 0
     @State private var subtitleOffset: CGFloat = 9
     @State private var wavePhase: CGFloat = 0
-    private let brandName = "BILOKO’S"
+    private let brandName = "LUKA"
 
     var body: some View {
         GeometryReader { proxy in
@@ -115,10 +115,9 @@ private struct KutanaSplashView: View {
                     }
 
                 VStack(spacing: 19) {
-                    Text("BLK")
-                        .font(.system(size: side * 0.43, weight: .bold))
-                        .tracking(-2)
-                        .foregroundStyle(KutanaTheme.ink)
+                    Image("luka_mark")
+                        .resizable()
+                        .scaledToFit()
                         .frame(width: side, height: side)
                         .offset(y: logoOffset)
                         .scaleEffect(logoScale)
@@ -137,7 +136,7 @@ private struct KutanaSplashView: View {
                             }
                             .accessibilityLabel(brandName)
 
-                        Text("Le marché des opportunités")
+                        Text("Tout ce que tu cherches, au même endroit.")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
@@ -182,13 +181,13 @@ private struct KutanaSplashView: View {
                     subtitleOpacity = 1
                     subtitleOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(2100))
+                try? await Task.sleep(for: .milliseconds(700))
             }
             guard !Task.isCancelled else { return }
             onFinished()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("BLK. BILOKO’S. Le marché des opportunités.")
+        .accessibilityLabel("LUKA. Tout ce que tu cherches, au même endroit.")
     }
 }
 
