@@ -15,7 +15,11 @@ struct WelcomeFlow: View {
 
     var body: some View {
         RootView(allowNotificationPrompt: splashFinished)
-        .sheet(isPresented: $showAuthentication) {
+        .sheet(isPresented: $showAuthentication, onDismiss: {
+            if !identity.authenticated {
+                NotificationCenter.default.post(name: Notification.Name("kutana-login-cancelled"), object: nil)
+            }
+        }) {
             NavigationStack {
                 switch route {
                 case .login, .introduction:

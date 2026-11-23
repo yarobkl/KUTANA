@@ -197,6 +197,7 @@ private struct ListingDetailView: View {
     let item: ListingRecord
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var contacting = false
+    @State private var resumeContactAfterLogin = false
     @State private var showChat = false
     @State private var conversationID: UUID?
     @State private var errorMessage: String?
@@ -255,6 +256,7 @@ private struct ListingDetailView: View {
                     if identity.authenticated {
                         Task { await contactSeller() }
                     } else {
+                        resumeContactAfterLogin = true
                         NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
                     }
                 }
@@ -306,6 +308,15 @@ private struct ListingDetailView: View {
             }
         }
         .task { await loadPhotos() }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
+            resumeContactAfterLogin = false
+        }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            guard authenticated, resumeContactAfterLogin else { return }
+            resumeContactAfterLogin = false
+            guard !isMine, item.status != "sold" else { return }
+            Task { await contactSeller() }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",

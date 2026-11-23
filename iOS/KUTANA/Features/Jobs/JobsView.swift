@@ -186,6 +186,8 @@ struct JobDetailView: View {
     @State private var errorMessage: String?
     @State private var favorite = false
     @State private var favoriteBusy = false
+    @State private var pendingAction: PendingAction?
+    private enum PendingAction { case application, favorite }
 
     var body: some View {
         ScrollView {
@@ -202,6 +204,7 @@ struct JobDetailView: View {
                         if identity.authenticated {
                             Task { await toggleFavorite() }
                         } else {
+                            pendingAction = .favorite
                             NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
                         }
                     } label: {
@@ -216,6 +219,7 @@ struct JobDetailView: View {
                     if identity.authenticated {
                         Task { await apply() }
                     } else {
+                        pendingAction = .application
                         NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
                     }
                 }
@@ -246,6 +250,23 @@ struct JobDetailView: View {
                 .environmentObject(identity)
         }
         .task { await loadFavorite() }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
+            pendingAction = nil
+        }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            guard authenticated, let action = pendingAction else { return }
+            pendingAction = nil
+            guard !preview, !isMine else { return }
+            Task {
+                switch action {
+                case .application:
+                    await apply()
+                case .favorite:
+                    await loadFavorite()
+                    if !favorite { await toggleFavorite() }
+                }
+            }
+        }
     }
 
     @MainActor private func loadFavorite() async {
