@@ -81,8 +81,8 @@ struct LukaCommentsView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
             resumeSend = false
         }
-        .onChange(of: identity.authenticated) { _, authenticated in
-            if authenticated && resumeSend {
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-profile-ready"))) { _ in
+            if identity.authenticated && resumeSend {
                 resumeSend = false
                 Task { await send() }
             }

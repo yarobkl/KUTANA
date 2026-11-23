@@ -91,6 +91,13 @@ final class StubProtocol: URLProtocol {
             birth_date: "1990-01-01", phone_e164: "+242061234567", phone_region: "CG",
             country_code: "CG", city: "Brazzaville", commune: "Bacongo", share_location_with_recruiters: false)
         try await profileAPI.savePrivateProfile(profile, accessToken: "profile-token")
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/profiles")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer profile-token")
+            return (200, Data(#"[{"display_name":"Marie Test"}]"#.utf8))
+        }
+        let basicProfile = try await profileAPI.basicProfile(accessToken: "profile-token")
+        assert(basicProfile?.display_name == "Marie Test")
         print("Auth/network smoke tests: OK")
     }
 }

@@ -12,11 +12,18 @@ struct WelcomeFlow: View {
     @State private var route: WelcomePage = .login
     @State private var splashFinished = false
     @State private var showAuthentication = false
+    @State private var showProfileCompletion = false
+    @State private var profileCheckError = false
+    @State private var profileChecking = false
+    @State private var profileReady = false
 
     var body: some View {
         RootView(allowNotificationPrompt: splashFinished)
+        .allowsHitTesting(!identity.authenticated || profileReady)
         .sheet(isPresented: $showAuthentication, onDismiss: {
-            if !identity.authenticated {
+            if identity.authenticated {
+                Task { await checkProfile() }
+            } else {
                 NotificationCenter.default.post(name: Notification.Name("kutana-login-cancelled"), object: nil)
             }
         }) {
@@ -37,8 +44,38 @@ struct WelcomeFlow: View {
             route = .login
             showAuthentication = true
         }
+        .fullScreenCover(isPresented: $showProfileCompletion, onDismiss: {
+            let event = identity.authenticated && profileReady ? "luka-profile-ready" : "kutana-login-cancelled"
+            NotificationCenter.default.post(name: Notification.Name(event), object: nil)
+        }) {
+            NavigationStack {
+                LukaPrivateProfileView(completionMode: true) {
+                    profileReady = true
+                    showProfileCompletion = false
+                }
+            }
+            .interactiveDismissDisabled()
+        }
+        .alert("Impossible de vérifier votre profil", isPresented: $profileCheckError) {
+            Button("Réessayer") { Task { await checkProfile() } }
+            Button("Continuer en visiteur", role: .cancel) {
+                identity.signOut()
+                NotificationCenter.default.post(name: Notification.Name("kutana-login-cancelled"), object: nil)
+            }
+        } message: {
+            Text("Vérifiez votre connexion puis réessayez.")
+        }
         .onChange(of: identity.authenticated) { _, authenticated in
-            if authenticated { showAuthentication = false }
+            if authenticated {
+                if showAuthentication { showAuthentication = false }
+                else { Task { await checkProfile() } }
+            } else {
+                profileReady = false
+                showProfileCompletion = false
+            }
+        }
+        .onChange(of: splashFinished) { _, finished in
+            if finished && identity.authenticated { Task { await checkProfile() } }
         }
         .tint(KutanaTheme.blue)
         .overlay {
@@ -57,6 +94,34 @@ struct WelcomeFlow: View {
             }
         }
         .task { await identity.restore() }
+    }
+
+    @MainActor private func checkProfile() async {
+        guard identity.authenticated, splashFinished, !showAuthentication,
+              !profileChecking, !profileReady, !showProfileCompletion else { return }
+        profileChecking = true
+        defer { profileChecking = false }
+        guard let config = identity.configuration, let token = await identity.freshAccessToken() else {
+            if identity.authenticated { profileCheckError = true }
+            return
+        }
+        guard let subject = AccessTokenMetadata.subject(token) else {
+            profileCheckError = true
+            return
+        }
+        do {
+            let profile = try await KutanaAPI(configuration: config).privateProfile(accessToken: token)
+            guard identity.authenticated, let currentToken = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(currentToken) == subject else { return }
+            if profile == nil {
+                showProfileCompletion = true
+            } else {
+                profileReady = true
+                NotificationCenter.default.post(name: Notification.Name("luka-profile-ready"), object: nil)
+            }
+        } catch {
+            if identity.authenticated { profileCheckError = true }
+        }
     }
 }
 
@@ -469,7 +534,7 @@ private struct KutanaSocialSignInButtons: View {
                         return
                     }
                     appleNonce = nil
-                    Task { await identity.signInWithApple(idToken: token, nonce: nonce) }
+                    Task { await identity.signInWithApple(idToken: token, nonce: nonce, givenName: credential.fullName?.givenName, familyName: credential.fullName?.familyName) }
                 case .failure(let error):
                     appleNonce = nil
                     identity.reportSocialSignInFailure(error)

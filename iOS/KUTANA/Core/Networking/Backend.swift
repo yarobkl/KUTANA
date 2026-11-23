@@ -79,6 +79,14 @@ actor KutanaAPI {
         self.decoder = decoder
     }
 
+    func basicProfile(accessToken: String) async throws -> LukaBasicProfile? {
+        let rows: [LukaBasicProfile] = try await get("profiles", query: [
+            URLQueryItem(name: "select", value: "display_name"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return rows.first
+    }
+
     func privateProfile(accessToken: String) async throws -> LukaPrivateProfile? {
         let rows: [LukaPrivateProfile] = try await get("luka_private_profiles", query: [
             URLQueryItem(name: "select", value: "user_id,first_name,last_name,birth_date,phone_e164,phone_region,country_code,city,commune,share_location_with_recruiters"),

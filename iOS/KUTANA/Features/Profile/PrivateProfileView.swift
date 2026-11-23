@@ -3,6 +3,13 @@ import PhoneNumberKit
 
 /// Private account details. The server enforces that only the owner can read or update them.
 struct LukaPrivateProfileView: View {
+    var completionMode = false
+    var onSaved: (() -> Void)?
+
+    init(completionMode: Bool = false, onSaved: (() -> Void)? = nil) {
+        self.completionMode = completionMode
+        self.onSaved = onSaved
+    }
     @EnvironmentObject private var identity: KutanaSessionStore
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focus: Field?
@@ -98,6 +105,11 @@ struct LukaPrivateProfileView: View {
         .navigationTitle("Informations personnelles")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if completionMode {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Continuer en visiteur") { identity.signOut(); dismiss() }
+                }
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Suivant") {
@@ -151,6 +163,15 @@ struct LukaPrivateProfileView: View {
                 city = profile.city
                 commune = profile.commune
                 shareLocation = profile.share_location_with_recruiters
+            } else {
+                firstName = identity.suggestedFirstName
+                lastName = identity.suggestedLastName
+                if firstName.isEmpty && lastName.isEmpty,
+                   let basic = try? await KutanaAPI(configuration: config).basicProfile(accessToken: token) {
+                    let pieces = basic.display_name.split(separator: " ", maxSplits: 1)
+                    if let first = pieces.first { firstName = String(first) }
+                    if pieces.count > 1 { lastName = String(pieces[1]) }
+                }
             }
             loaded = true
         } catch {
@@ -196,6 +217,7 @@ struct LukaPrivateProfileView: View {
         defer { saving = false }
         do {
             try await KutanaAPI(configuration: config).savePrivateProfile(profile, accessToken: token)
+            onSaved?()
             dismiss()
         } catch { errorMessage = "Impossible d'enregistrer votre profil. Réessayez." }
     }

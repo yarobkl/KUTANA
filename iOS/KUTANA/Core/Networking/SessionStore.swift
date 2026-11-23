@@ -9,6 +9,8 @@ import AuthenticationServices
     @Published private(set) var busy = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var notice: String?
+    @Published private(set) var suggestedFirstName = ""
+    @Published private(set) var suggestedLastName = ""
 
     let configuration: BackendConfiguration?
     private let tokenStore = SecureTokenStore()
@@ -55,7 +57,7 @@ import AuthenticationServices
         catch { errorMessage = error.localizedDescription }
     }
 
-    func signInWithApple(idToken: String, nonce: String) async {
+    func signInWithApple(idToken: String, nonce: String, givenName: String? = nil, familyName: String? = nil) async {
         guard let auth else {
             errorMessage = "Le serveur LUKA n'est pas configuré."
             return
@@ -63,7 +65,10 @@ import AuthenticationServices
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
-            try save(try await auth.signInWithApple(idToken: idToken, nonce: nonce))
+            let session = try await auth.signInWithApple(idToken: idToken, nonce: nonce)
+            suggestedFirstName = givenName ?? ""
+            suggestedLastName = familyName ?? ""
+            try save(session)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -138,6 +143,8 @@ import AuthenticationServices
     func signOut() {
         tokenStore.remove(account: storageAccount)
         active = nil
+        suggestedFirstName = ""
+        suggestedLastName = ""
         authenticated = false
         notice = nil
         errorMessage = nil

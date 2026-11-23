@@ -260,8 +260,8 @@ struct JobDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
             pendingAction = nil
         }
-        .onChange(of: identity.authenticated) { _, authenticated in
-            guard authenticated, let action = pendingAction else { return }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-profile-ready"))) { _ in
+            guard identity.authenticated, let action = pendingAction else { return }
             pendingAction = nil
             guard !preview, !isMine else { return }
             Task {

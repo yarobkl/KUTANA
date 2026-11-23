@@ -167,3 +167,7 @@ struct LukaPrivateProfile: Codable, Sendable {
     let commune: String
     let share_location_with_recruiters: Bool
 }
+
+struct LukaBasicProfile: Decodable, Sendable {
+    let display_name: String
+}
