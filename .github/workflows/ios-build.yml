@@ -68,7 +68,7 @@ jobs:
           test -d KUTANA.app
           zip -qry "$RUNNER_TEMP/KUTANA-simulator-app.zip" KUTANA.app
       - name: Test guest navigation on iPhone
-        if: success() && github.event_name == 'workflow_dispatch'
+        if: success()
         timeout-minutes: 12
         shell: bash
         run: |

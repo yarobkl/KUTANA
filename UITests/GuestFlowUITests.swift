@@ -20,4 +20,25 @@ final class GuestFlowUITests: XCTestCase {
         signIn.tap()
         XCTAssertTrue(app.textFields["Adresse e-mail"].waitForExistence(timeout: 5))
     }
+    func testRegistrationKeyboardMovesBetweenNameFields() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let profile = app.tabBars.buttons["Profil"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 20))
+        profile.tap()
+        let signIn = app.buttons["Se connecter"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 5))
+        signIn.tap()
+        let create = app.buttons["Créer un compte"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        create.tap()
+        let firstName = app.textFields["Prénom"]
+        let lastName = app.textFields["Nom"]
+        XCTAssertTrue(firstName.waitForExistence(timeout: 5))
+        firstName.tap()
+        firstName.typeText("Marie\n")
+        app.typeText("Bakala")
+        XCTAssertEqual(lastName.value as? String, "Bakala")
+    }
+
 }
