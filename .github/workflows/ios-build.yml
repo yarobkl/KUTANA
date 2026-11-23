@@ -67,6 +67,68 @@ jobs:
           cd "$RUNNER_TEMP/KUTANADerivedData/Build/Products/Debug-iphonesimulator"
           test -d KUTANA.app
           zip -qry "$RUNNER_TEMP/KUTANA-simulator-app.zip" KUTANA.app
+      - name: Capture guest home on available iPhones
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/luka-screenshots"
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/luka-devices.json"
+          python3 - "$RUNNER_TEMP/luka-devices.json" > "$RUNNER_TEMP/luka-selected-devices.tsv" <<'PY'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          devices = [d for runtime, items in data["devices"].items() if "iOS" in runtime
+                     for d in items if d.get("isAvailable") and d["name"].startswith("iPhone")]
+          choices = [
+              ("reference", lambda n: n == "iPhone 16 Pro"),
+              ("compact", lambda n: "mini" in n or n.endswith(" SE") or n.endswith(" 16e")),
+              ("large", lambda n: "Pro Max" in n or "Plus" in n),
+          ]
+          used = set()
+          for label, match in choices:
+              device = next((d for d in devices if match(d["name"]) and d["udid"] not in used), None)
+              if device:
+                  used.add(device["udid"])
+                  print(f'{label}\t{device["udid"]}\t{device["name"]}')
+              else:
+                  print(f'Missing simulator for {label}', file=sys.stderr)
+          if not used:
+              raise SystemExit("No suitable iPhone simulator available")
+          PY
+          while IFS=
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUTANA-build-diagnostics
+          path: ${{ runner.temp }}/kutana-xcodebuild.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload simulator build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUTANA-iOS-simulator
+          path: ${{ runner.temp }}/KUTANA-simulator-app.zip
+          if-no-files-found: error
+          retention-days: 7
+\t' read -r label udid device_name; do
+            echo "Capturing $label on $device_name"
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl install "$udid" "$RUNNER_TEMP/KUTANADerivedData/Build/Products/Debug-iphonesimulator/KUTANA.app"
+            xcrun simctl launch "$udid" fr.yaroconsulting.kutana
+            sleep 8
+            xcrun simctl io "$udid" screenshot "$RUNNER_TEMP/luka-screenshots/$label.png"
+            xcrun simctl shutdown "$udid"
+          done < "$RUNNER_TEMP/luka-selected-devices.tsv"
+      - name: Upload guest home screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUKA-guest-home-screenshots
+          path: ${{ runner.temp }}/luka-screenshots
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
