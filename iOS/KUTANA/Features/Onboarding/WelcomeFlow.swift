@@ -92,9 +92,9 @@ private struct KutanaSplashView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var logoOffset: CGFloat = -650
     @State private var logoScale: CGFloat = 0.82
-    @State private var textOpacity = 0.0
-    @State private var textOffset: CGFloat = 14
-    @State private var revealedLetters = 0
+    @State private var letteringProgress: CGFloat = 0
+    @State private var subtitleOpacity: Double = 0
+    @State private var subtitleOffset: CGFloat = 9
     private let brandName = "KUTANA"
 
     var body: some View {
@@ -102,6 +102,7 @@ private struct KutanaSplashView: View {
             let side = min(110.0, max(88.0, proxy.size.width * 0.28))
             ZStack {
                 Color.white.ignoresSafeArea()
+
                 BottomWaveShape()
                     .fill(LinearGradient(
                         colors: [KutanaTheme.blue, Color(red: 0.02, green: 0.25, blue: 0.85)],
@@ -122,25 +123,27 @@ private struct KutanaSplashView: View {
                         .scaleEffect(logoScale)
 
                     VStack(spacing: 8) {
-                        ZStack {
-                            Text(brandName).hidden()
-                            Text(String(brandName.prefix(revealedLetters)))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .font(.system(size: 32, weight: .black))
-                        .tracking(2)
-                        .foregroundStyle(KutanaTheme.ink)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .accessibilityLabel(brandName)
+                        Text(brandName)
+                            .font(.system(size: 32, weight: .black))
+                            .tracking(2)
+                            .foregroundStyle(KutanaTheme.ink)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .mask(alignment: .leading) {
+                                GeometryReader { textBounds in
+                                    Rectangle()
+                                        .frame(width: textBounds.size.width * letteringProgress)
+                                }
+                            }
+                            .accessibilityLabel(brandName)
+
                         Text("Emploi · Annonces · Congo")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
-                            .opacity(textOpacity)
+                            .opacity(subtitleOpacity)
+                            .offset(y: subtitleOffset)
                     }
-                    .opacity(revealedLetters > 0 || reduceMotion ? 1 : 0)
-                    .offset(y: textOffset)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 18)
@@ -151,32 +154,34 @@ private struct KutanaSplashView: View {
             if reduceMotion {
                 logoOffset = 0
                 logoScale = 1
-                textOpacity = 1
-                textOffset = 0
-                revealedLetters = brandName.count
+                letteringProgress = 1
+                subtitleOpacity = 1
+                subtitleOffset = 0
                 try? await Task.sleep(for: .milliseconds(350))
             } else {
-                let landingFeedback = UIImpactFeedbackGenerator(style: .rigid)
+                let landingFeedback = UIImpactFeedbackGenerator(style: .soft)
                 landingFeedback.prepare()
-                withAnimation(.spring(response: 0.68, dampingFraction: 0.63)) {
+
+                withAnimation(.spring(response: 0.66, dampingFraction: 0.72)) {
                     logoOffset = 0
                     logoScale = 1
                 }
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(590))
                 guard !Task.isCancelled else { return }
-                landingFeedback.impactOccurred(intensity: 1)
-                withAnimation(.easeOut(duration: 0.3)) {
-                    textOffset = 0
+                landingFeedback.impactOccurred(intensity: 0.65)
+
+                // A continuous typographic reveal, not six abrupt letter changes.
+                withAnimation(.easeInOut(duration: 0.78)) {
+                    letteringProgress = 1
                 }
-                for count in 1...brandName.count {
-                    guard !Task.isCancelled else { return }
-                    revealedLetters = count
-                    try? await Task.sleep(for: .milliseconds(105))
+                try? await Task.sleep(for: .milliseconds(680))
+                guard !Task.isCancelled else { return }
+
+                withAnimation(.easeOut(duration: 0.36)) {
+                    subtitleOpacity = 1
+                    subtitleOffset = 0
                 }
-                withAnimation(.easeOut(duration: 0.3)) {
-                    textOpacity = 1
-                }
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(470))
             }
             guard !Task.isCancelled else { return }
             onFinished()
