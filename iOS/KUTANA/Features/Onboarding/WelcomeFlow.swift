@@ -95,6 +95,7 @@ private struct KutanaSplashView: View {
     @State private var letteringProgress: CGFloat = 0
     @State private var subtitleOpacity: Double = 0
     @State private var subtitleOffset: CGFloat = 9
+    @State private var wavePhase: CGFloat = 0
     private let brandName = "BILOKO’S"
 
     var body: some View {
@@ -103,7 +104,7 @@ private struct KutanaSplashView: View {
             ZStack {
                 Color.white.ignoresSafeArea()
 
-                BottomWaveShape()
+                BottomWaveShape(phase: wavePhase)
                     .fill(LinearGradient(
                         colors: [KutanaTheme.blue, Color(red: 0.02, green: 0.25, blue: 0.85)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
@@ -111,22 +112,21 @@ private struct KutanaSplashView: View {
                     .frame(height: min(240, max(155, proxy.size.height * 0.28)))
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(edges: .bottom)
+                    .onAppear {
+                        guard !reduceMotion else { return }
+                        withAnimation(.linear(duration: 3.2).repeatForever(autoreverses: false)) {
+                            wavePhase = .pi * 2
+                        }
+                    }
 
                 VStack(spacing: 19) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: side * 0.23, style: .continuous)
-                            .fill(KutanaTheme.blue.gradient)
-                        Text("BLK")
-                            .font(.system(size: side * 0.35, weight: .black, design: .rounded))
-                            .tracking(-1.5)
-                            .foregroundStyle(.white)
-                            .minimumScaleFactor(0.8)
-                            .lineLimit(1)
-                    }
-                    .frame(width: side, height: side)
-                    .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
-                    .offset(y: logoOffset)
-                    .scaleEffect(logoScale)
+                    Text("BLK")
+                        .font(.system(size: side * 0.43, weight: .bold))
+                        .tracking(-2)
+                        .foregroundStyle(KutanaTheme.ink)
+                        .frame(width: side, height: side)
+                        .offset(y: logoOffset)
+                        .scaleEffect(logoScale)
 
                     VStack(spacing: 8) {
                         Text(brandName)
@@ -198,12 +198,22 @@ private struct KutanaSplashView: View {
 }
 
 private struct BottomWaveShape: Shape {
+    var phase: CGFloat = 0
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
+
     func path(in rect: CGRect) -> Path {
+        let movement = sin(phase) * rect.height * 0.075
+        let trailingMovement = cos(phase) * rect.height * 0.045
         var path = Path()
         path.move(to: CGPoint(x: 0, y: rect.height))
-        path.addCurve(to: CGPoint(x: rect.width, y: rect.height * 0.15),
-                      control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85),
-                      control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1))
+        path.addCurve(
+            to: CGPoint(x: rect.width, y: rect.height * 0.15 + trailingMovement),
+            control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85 + movement),
+            control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1 - movement)
+        )
         path.addLine(to: CGPoint(x: rect.width, y: rect.height))
         path.closeSubpath()
         return path
@@ -340,6 +350,8 @@ private struct KutanaRegistrationView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
+    @FocusState private var focusedField: RegistrationField?
+    private enum RegistrationField: Hashable { case name, email, password, confirmation }
     @State private var validationError: String?
     @EnvironmentObject private var identity: KutanaSessionStore
     var body: some View {
@@ -348,11 +360,20 @@ private struct KutanaRegistrationView: View {
                 Button(action: back) { Image(systemName: "chevron.left").font(.title3) }
                 KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez KUTANA pour trouver un emploi, publier vos annonces et échanger facilement.")
                     .padding(.top, 33)
-                TextField("Nom et prénom", text: $fullName).textContentType(.name).kutanaField()
+                TextField("Nom et prénom", text: $fullName)
+                    .textContentType(.name).textInputAutocapitalization(.words)
+                    .submitLabel(.next).focused($focusedField, equals: .name)
+                    .onSubmit { focusedField = .email }.kutanaField()
                 TextField("Adresse e-mail", text: $email)
-                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled().kutanaField()
-                SecureField("Mot de passe", text: $password).textContentType(.newPassword).kutanaField()
-                SecureField("Confirmer le mot de passe", text: $confirmation).textContentType(.newPassword).kutanaField()
+                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .submitLabel(.next).focused($focusedField, equals: .email)
+                    .onSubmit { focusedField = .password }.kutanaField()
+                SecureField("Mot de passe", text: $password).textContentType(.newPassword)
+                    .submitLabel(.next).focused($focusedField, equals: .password)
+                    .onSubmit { focusedField = .confirmation }.kutanaField()
+                SecureField("Confirmer le mot de passe", text: $confirmation).textContentType(.newPassword)
+                    .submitLabel(.done).focused($focusedField, equals: .confirmation)
+                    .onSubmit { focusedField = nil }.kutanaField()
                 if let error = validationError ?? identity.errorMessage {
                     Text(error).font(.footnote).foregroundStyle(.red)
                 }
