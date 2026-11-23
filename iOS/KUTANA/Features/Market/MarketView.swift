@@ -197,7 +197,8 @@ private struct ListingDetailView: View {
     let item: ListingRecord
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var contacting = false
-    @State private var resumeContactAfterLogin = false
+    @State private var pendingAction: PendingAction?
+    private enum PendingAction { case contact, favorite }
     @State private var showChat = false
     @State private var conversationID: UUID?
     @State private var errorMessage: String?
@@ -256,7 +257,7 @@ private struct ListingDetailView: View {
                     if identity.authenticated {
                         Task { await contactSeller() }
                     } else {
-                        resumeContactAfterLogin = true
+                        pendingAction = .contact
                         NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
                     }
                 }
@@ -309,13 +310,18 @@ private struct ListingDetailView: View {
         }
         .task { await loadPhotos() }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
-            resumeContactAfterLogin = false
+            pendingAction = nil
         }
         .onChange(of: identity.authenticated) { _, authenticated in
-            guard authenticated, resumeContactAfterLogin else { return }
-            resumeContactAfterLogin = false
-            guard !isMine, item.status != "sold" else { return }
-            Task { await contactSeller() }
+            guard authenticated, let action = pendingAction else { return }
+            pendingAction = nil
+            switch action {
+            case .contact:
+                guard !isMine, item.status != "sold" else { return }
+                Task { await contactSeller() }
+            case .favorite:
+                if !isFavorite { toggleFavorite() }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -327,7 +333,10 @@ private struct ListingDetailView: View {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
                        systemImage: isFavorite ? "heart.fill" : "heart") {
                     if identity.authenticated { toggleFavorite() }
-                    else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                    else {
+                        pendingAction = .favorite
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
                 }
                     .accessibilityLabel(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris")
             }
@@ -372,7 +381,7 @@ private struct ListingDetailView: View {
         }
         guard let token = await identity.freshAccessToken() else {
             if !identity.authenticated {
-                resumeContactAfterLogin = true
+                pendingAction = .contact
                 NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
             } else {
                 errorMessage = "Connexion indisponible. Réessayez."
