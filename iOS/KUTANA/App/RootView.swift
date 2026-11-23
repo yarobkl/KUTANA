@@ -38,7 +38,7 @@ struct RootView: View {
         .onChange(of: selection) { _, _ in Task { await refreshUnread() } }
         .onAppear { offerNotificationPrompt() }
         .onChange(of: allowNotificationPrompt) { _, _ in offerNotificationPrompt() }
-        .alert("Rester informé sur KUTANA ?", isPresented: $showingNotificationPrompt) {
+        .alert("Rester informé sur LUKA ?", isPresented: $showingNotificationPrompt) {
             Button("Activer") {
                 notificationPromptSeen = true
                 Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) }
@@ -162,7 +162,7 @@ private struct JobDraftFormView: View {
                 }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 if !identity.isConfigured {
-                    Text("Le serveur KUTANA indépendant n'est pas encore configuré.")
+                    Text("Le serveur LUKA n'est pas encore configuré.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
@@ -263,7 +263,7 @@ private struct ListingDraftFormView: View {
                 }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 if !identity.isConfigured {
-                    Text("Le serveur KUTANA indépendant n'est pas encore configuré.")
+                    Text("Le serveur LUKA n'est pas encore configuré.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
@@ -276,7 +276,7 @@ private struct ListingDraftFormView: View {
                     .disabled(publishing || !identity.authenticated)
                 }
             } footer: {
-                Text("L'annonce reste privée jusqu'à sa mise en ligne. Elle sera visible pendant 30 jours, puis conservée dans vos archives. Aucun paiement n'est réalisé dans KUTANA.")
+                Text("L'annonce reste privée jusqu'à sa mise en ligne. Elle sera visible pendant 30 jours, puis conservée dans vos archives. Aucun paiement n'est réalisé dans LUKA.")
             }
         }
         .navigationTitle("Nouvelle annonce")

@@ -77,7 +77,7 @@ private struct KutanaLogo: View {
                 }
             }
             if large {
-                Text("KUTANA").font(.system(size: 44, weight: .heavy))
+                Text("LUKA").font(.system(size: 44, weight: .heavy))
                     .foregroundStyle(KutanaTheme.ink)
             }
         }

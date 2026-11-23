@@ -27,7 +27,7 @@ enum KutanaSocialAuthError: LocalizedError {
         case .missingAppleToken:
             "Apple n'a pas transmis de jeton d'identité. Réessayez."
         case .providerNotReady:
-            "Le service de connexion n'est pas encore configuré sur le serveur KUTANA."
+            "Le service de connexion n'est pas encore configuré sur le serveur LUKA."
         }
     }
 }

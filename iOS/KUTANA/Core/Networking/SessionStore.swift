@@ -48,7 +48,7 @@ import AuthenticationServices
     }
 
     func signIn(email: String, password: String) async {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do { try save(try await auth.signIn(email: email, password: password)) }
@@ -57,7 +57,7 @@ import AuthenticationServices
 
     func signInWithApple(idToken: String, nonce: String) async {
         guard let auth else {
-            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            errorMessage = "Le serveur LUKA n'est pas configuré."
             return
         }
         busy = true; errorMessage = nil; notice = nil
@@ -71,7 +71,7 @@ import AuthenticationServices
 
     func signInWithGoogle() async {
         guard let auth, let configuration else {
-            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            errorMessage = "Le serveur LUKA n'est pas configuré."
             return
         }
         busy = true; errorMessage = nil; notice = nil
@@ -96,7 +96,7 @@ import AuthenticationServices
     }
 
     func signUp(email: String, password: String, fullName: String) async -> Bool {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return false }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return false }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
@@ -107,7 +107,7 @@ import AuthenticationServices
     }
 
     func resetPassword(email: String) async -> Bool {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return false }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return false }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {

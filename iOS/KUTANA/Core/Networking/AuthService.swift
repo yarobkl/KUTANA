@@ -90,13 +90,13 @@ actor KutanaAuthService {
         let (data, response) = try await http.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            throw AuthFailure.remoteMessage("Impossible de vérifier les connexions externes de KUTANA.")
+            throw AuthFailure.remoteMessage("Impossible de vérifier les connexions externes de LUKA.")
         }
         let settings = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let providers = settings?["external"] as? [String: Any]
         if (providers?[name] as? Bool) == false {
             let label = name == "apple" ? "Apple" : "Google"
-            throw AuthFailure.remoteMessage("Connexion \(label) indisponible : ce service n’est pas encore activé sur KUTANA.")
+            throw AuthFailure.remoteMessage("Connexion \(label) indisponible : ce service n’est pas encore activé sur LUKA.")
         }
     }
 
@@ -174,7 +174,7 @@ actor KutanaAuthService {
                     if detail.localizedCaseInsensitiveContains("provider") &&
                         (detail.localizedCaseInsensitiveContains("disabled") ||
                          detail.localizedCaseInsensitiveContains("not enabled")) {
-                        throw AuthFailure.remoteMessage("La connexion via ce fournisseur n’est pas encore activée sur KUTANA.")
+                        throw AuthFailure.remoteMessage("La connexion via ce fournisseur n’est pas encore activée sur LUKA.")
                     }
                     throw AuthFailure.remoteMessage(detail.isEmpty
                         ? "La connexion avec ce fournisseur n'est pas disponible. Vérifiez sa configuration."

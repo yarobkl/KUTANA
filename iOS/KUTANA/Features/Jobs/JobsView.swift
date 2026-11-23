@@ -20,8 +20,8 @@ struct JobsView: View {
         let author = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
         let date = Date()
         return [
-            JobRecord(id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!, author_id: author, title: "Assistant commercial (H/F)", company: "Entreprise de distribution", city: "Brazzaville", contract_type: "CDI", description: "Exemple de présentation KUTANA. Cette offre n'est pas publiée et aucune candidature ne peut y être envoyée.", status: "demo", created_at: date),
-            JobRecord(id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!, author_id: author, title: "Chargé de marketing digital (H/F)", company: "Agence de communication", city: "Pointe-Noire", contract_type: "CDD", description: "Exemple de présentation KUTANA. Cette offre n'est pas publiée.", status: "demo", created_at: date)
+            JobRecord(id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!, author_id: author, title: "Assistant commercial (H/F)", company: "Entreprise de distribution", city: "Brazzaville", contract_type: "CDI", description: "Exemple de présentation LUKA. Cette offre n'est pas publiée et aucune candidature ne peut y être envoyée.", status: "demo", created_at: date),
+            JobRecord(id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!, author_id: author, title: "Chargé de marketing digital (H/F)", company: "Agence de communication", city: "Pointe-Noire", contract_type: "CDD", description: "Exemple de présentation LUKA. Cette offre n'est pas publiée.", status: "demo", created_at: date)
         ]
     }
 

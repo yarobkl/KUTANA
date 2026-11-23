@@ -150,7 +150,7 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Dans KUTANA") {
+            Section("Dans LUKA") {
                 Toggle("Nouveaux messages", isOn: $messages)
                 Toggle("Offres de mes alertes", isOn: $jobs)
             }
@@ -159,7 +159,7 @@ struct NotificationSettingsView: View {
                 if saved { Label("Préférences enregistrées", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             } footer: {
-                Text("Les notifications sont visibles dans KUTANA. Les alertes iPhone lorsque l'app est fermée nécessitent encore la configuration des notifications distantes.")
+                Text("Les notifications sont visibles dans LUKA. Les alertes iPhone lorsque l'app est fermée nécessitent encore la configuration des notifications distantes.")
             }
             Section("Notifications iPhone") {
                 if let authorizationStatus {
