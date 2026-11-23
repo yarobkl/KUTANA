@@ -42,6 +42,7 @@ struct ListingRecord: Identifiable, Codable, Sendable {
     let status: String
     let created_at: Date
     var listing_images: [ListingImageLink]? = nil
+    var expires_at: Date? = nil
 }
 
 

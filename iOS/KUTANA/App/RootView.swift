@@ -276,7 +276,7 @@ private struct ListingDraftFormView: View {
                     .disabled(publishing || !identity.authenticated)
                 }
             } footer: {
-                Text("L'annonce reste privée jusqu'à sa mise en ligne. Aucun paiement n'est réalisé dans KUTANA.")
+                Text("L'annonce reste privée jusqu'à sa mise en ligne. Elle sera visible pendant 30 jours, puis conservée dans vos archives. Aucun paiement n'est réalisé dans KUTANA.")
             }
         }
         .navigationTitle("Nouvelle annonce")
@@ -381,6 +381,10 @@ struct MyPublicationsView: View {
             Text("\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)")
                 .font(.subheadline).foregroundStyle(.secondary)
             Text(statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            if (item.status == "published" || item.status == "sold"), let expiresAt = item.expires_at {
+                Text("En ligne jusqu'au \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if item.status == "sold" {
                 Button("Retirer et archiver") {
                     Task { await changeListing(id: item.id, status: "archived") }

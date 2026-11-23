@@ -170,7 +170,7 @@ actor KutanaAPI {
 
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {
         try await get("listings", query: [
-            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,listing_images(storage_path)"),
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),
             URLQueryItem(name: "status", value: "in.(published,sold)"),
             URLQueryItem(name: "order", value: "created_at.desc"),
             URLQueryItem(name: "limit", value: String(min(max(limit, 1), 50)))
@@ -190,7 +190,7 @@ actor KutanaAPI {
 
     func myListings(ownerID: UUID, accessToken: String) async throws -> [ListingRecord] {
         try await get("listings", query: [
-            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at"),
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at"),
             URLQueryItem(name: "seller_id", value: "eq.\(ownerID.uuidString.lowercased())"),
             URLQueryItem(name: "order", value: "created_at.desc"),
             URLQueryItem(name: "limit", value: "100")
