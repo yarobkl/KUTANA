@@ -137,6 +137,7 @@ private struct KutanaSplashView: View {
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
                             .lineLimit(1)
+                            .opacity(textOpacity)
                     }
                     .opacity(revealedLetters > 0 || reduceMotion ? 1 : 0)
                     .offset(y: textOffset)
