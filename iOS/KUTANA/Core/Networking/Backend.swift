@@ -79,6 +79,49 @@ actor KutanaAPI {
         self.decoder = decoder
     }
 
+    func publicComments(kind: String, contentID: UUID) async throws -> [LukaComment] {
+        try await get("luka_comments", query: [
+            URLQueryItem(name: "select", value: "id,kind,content_id,parent_id,author_id,author_name,body,created_at,deleted_at"),
+            URLQueryItem(name: "kind", value: "eq.\(kind)"),
+            URLQueryItem(name: "content_id", value: "eq.\(contentID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.asc"),
+            URLQueryItem(name: "limit", value: "100")
+        ])
+    }
+
+    func commentsEnabled(kind: String, contentID: UUID) async throws -> Bool {
+        let rows: [LukaCommentSetting] = try await get("luka_comment_settings", query: [
+            URLQueryItem(name: "select", value: "enabled"),
+            URLQueryItem(name: "kind", value: "eq.\(kind)"),
+            URLQueryItem(name: "content_id", value: "eq.\(contentID.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first?.enabled ?? true
+    }
+
+    func addComment(kind: String, contentID: UUID, parentID: UUID?, body: String, accessToken: String) async throws {
+        let parent: Any = parentID.map { $0.uuidString.lowercased() as Any } ?? NSNull()
+        try await write("rpc/luka_add_comment", method: "POST", body: [
+            "p_kind": kind, "p_content": contentID.uuidString.lowercased(), "p_parent": parent, "p_body": body
+        ], accessToken: accessToken)
+    }
+
+    func deleteComment(id: UUID, accessToken: String) async throws {
+        try await write("rpc/luka_delete_own_comment", method: "POST",
+                        body: ["p_comment": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func reportComment(id: UUID, reason: String, accessToken: String) async throws {
+        try await write("rpc/luka_report_comment", method: "POST",
+                        body: ["p_comment": id.uuidString.lowercased(), "p_reason": reason], accessToken: accessToken)
+    }
+
+    func setCommentsEnabled(kind: String, contentID: UUID, enabled: Bool, accessToken: String) async throws {
+        try await write("rpc/luka_set_comments_enabled", method: "POST", body: [
+            "p_kind": kind, "p_content": contentID.uuidString.lowercased(), "p_enabled": enabled
+        ], accessToken: accessToken)
+    }
+
     func publishedJobs(limit: Int = 30) async throws -> [JobRecord] {
         try await get("jobs", query: [
             URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),

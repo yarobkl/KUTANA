@@ -55,6 +55,30 @@ final class StubProtocol: URLProtocol {
         assert(refreshFailureInvalidatesSession(AuthFailure.invalidCredentials))
         assert(!refreshFailureInvalidatesSession(AuthFailure.badResponse(503)))
         assert(!refreshFailureInvalidatesSession(URLError(.notConnectedToInternet)))
+        let commentID = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
+        let commentAPI = KutanaAPI(configuration: config, session: session)
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("/luka_comments") {
+                assert(request.value(forHTTPHeaderField: "Authorization") == nil)
+                return (200, Data("[]".utf8))
+            }
+            if path.hasSuffix("/luka_comment_settings") {
+                return (200, Data(#"[{"enabled":false}]"#.utf8))
+            }
+            if path.hasSuffix("/rpc/luka_add_comment") {
+                assert(request.httpMethod == "POST")
+                assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+                return (200, Data("{}".utf8))
+            }
+            return (404, Data("{}".utf8))
+        }
+        let comments = try await commentAPI.publicComments(kind: "job", contentID: commentID)
+        assert(comments.isEmpty)
+        let enabled = try await commentAPI.commentsEnabled(kind: "job", contentID: commentID)
+        assert(!enabled)
+        try await commentAPI.addComment(kind: "job", contentID: commentID, parentID: nil,
+                                        body: "Bonjour", accessToken: "test-token")
         print("Auth/network smoke tests: OK")
     }
 }

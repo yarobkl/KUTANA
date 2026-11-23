@@ -236,6 +236,7 @@ struct JobDetailView: View {
                     Text(preview ? "Offre fictive : candidature désactivée." : "Connectez-vous pour postuler.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                if !preview { LukaCommentsView(kind: "job", contentID: job.id, isOwner: isMine) }
             }.padding(20)
         }
         .navigationBarTitleDisplayMode(.inline)

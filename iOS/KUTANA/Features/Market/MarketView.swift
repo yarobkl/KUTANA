@@ -272,6 +272,7 @@ private struct ListingDetailView: View {
                 if isMine {
                     Text("C'est votre annonce.").font(.footnote).foregroundStyle(.secondary)
                 }
+                LukaCommentsView(kind: "listing", contentID: item.id, isOwner: isMine)
             }.padding(20)
         }
         .navigationBarTitleDisplayMode(.inline)

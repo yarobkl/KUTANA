@@ -139,3 +139,18 @@ enum KutanaFormat {
         return "\(formatter.string(from: NSNumber(value: amount)) ?? String(amount)) FCFA"
     }
 }
+
+struct LukaComment: Decodable, Identifiable, Sendable {
+    let id: UUID
+    let kind: String
+    let content_id: UUID
+    let parent_id: UUID?
+    let author_id: UUID
+    let author_name: String
+    let body: String
+    let created_at: Date
+    let deleted_at: Date?
+}
+struct LukaCommentSetting: Decodable, Sendable {
+    let enabled: Bool
+}
