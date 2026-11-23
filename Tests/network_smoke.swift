@@ -52,6 +52,9 @@ final class StubProtocol: URLProtocol {
             try await auth.signUp(email: "invalid", password: "secure-password-123", fullName: "Test")
             assertionFailure("Invalid email was accepted")
         } catch AuthFailure.invalidEmail { /* expected */ }
+        assert(refreshFailureInvalidatesSession(AuthFailure.invalidCredentials))
+        assert(!refreshFailureInvalidatesSession(AuthFailure.badResponse(503)))
+        assert(!refreshFailureInvalidatesSession(URLError(.notConnectedToInternet)))
         print("Auth/network smoke tests: OK")
     }
 }

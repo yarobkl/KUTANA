@@ -36,7 +36,14 @@ import AuthenticationServices
             let new = try await auth.refresh(persisted.token.refresh_token)
             try save(new)
         } catch {
-            signOut()
+            if refreshFailureInvalidatesSession(error) {
+                signOut()
+            } else {
+                // Keep the Keychain session so a temporary outage can recover.
+                active = persisted
+                authenticated = true
+                errorMessage = "Connexion temporairement indisponible. Réessayez."
+            }
         }
     }
 
@@ -119,7 +126,11 @@ import AuthenticationServices
             try save(newToken)
             return newToken.access_token
         } catch {
-            signOut()
+            if refreshFailureInvalidatesSession(error) {
+                signOut()
+            } else {
+                errorMessage = "Connexion temporairement indisponible. Réessayez."
+            }
             return nil
         }
     }

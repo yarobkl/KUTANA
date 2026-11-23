@@ -40,6 +40,13 @@ enum AuthFailure: LocalizedError {
     }
 }
 
+/// Only an explicit invalid refresh response invalidates the stored session.
+func refreshFailureInvalidatesSession(_ error: Error) -> Bool {
+    guard let failure = error as? AuthFailure else { return false }
+    if case .invalidCredentials = failure { return true }
+    return false
+}
+
 /// Supabase GoTrue REST client. No service_role or other server secret belongs in this app.
 actor KutanaAuthService {
     private let config: BackendConfiguration
