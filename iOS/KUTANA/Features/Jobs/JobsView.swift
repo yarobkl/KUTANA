@@ -278,22 +278,31 @@ struct JobDetailView: View {
 
     @MainActor private func toggleFavorite() async {
         guard let config = identity.configuration, let token = await identity.freshAccessToken(),
-              let userID = AccessTokenMetadata.subject(token) else { return }
+              let userID = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour modifier vos favoris."
+            return
+        }
         favoriteBusy = true
         defer { favoriteBusy = false }
+        let api = KutanaAPI(configuration: config)
+        let adding = !favorite
         do {
-            let api = KutanaAPI(configuration: config)
-            if favorite { try await api.removeFavorite(jobID: job.id, accessToken: token) }
-            else {
-                try await api.addFavorite(jobID: job.id, userID: userID, accessToken: token)
-                let terms = job.title.split(separator: " ").prefix(2).joined(separator: " ")
-                if terms.count >= 2 {
-                    try await api.addAlert(keyword: terms, city: job.city, userID: userID, accessToken: token)
-                }
-            }
-            favorite.toggle(); errorMessage = nil
+            if adding { try await api.addFavorite(jobID: job.id, userID: userID, accessToken: token) }
+            else { try await api.removeFavorite(jobID: job.id, accessToken: token) }
+            favorite = adding
+            errorMessage = nil
             NotificationCenter.default.post(name: Notification.Name("kutana-favorites-changed"), object: nil)
-        } catch { errorMessage = "Impossible de modifier les favoris." }
+        } catch {
+            errorMessage = "Impossible de modifier les favoris."
+            return
+        }
+        if adding {
+            let terms = job.title.split(separator: " ").prefix(2).joined(separator: " ")
+            if terms.count >= 2 {
+                do { try await api.addAlert(keyword: terms, city: job.city, userID: userID, accessToken: token) }
+                catch { errorMessage = "Favori enregistré, mais l'alerte n'a pas pu être créée." }
+            }
+        }
     }
 
     private var isMine: Bool {
