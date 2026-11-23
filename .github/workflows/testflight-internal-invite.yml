@@ -28,6 +28,7 @@ jobs:
       ASC_GROUP_ID: '013ba6e8-36f5-4f4e-8feb-f61803cd09aa'
       ASC_API_KEY_ID: '4JXDLBF8XK'
       ASC_TRIGGER_STARTED: ${{ github.event.workflow_run.created_at || '' }}
+      ASC_EXPECTED_BUILD: ${{ github.event.workflow_run.run_number || '' }}
       ASC_API_ISSUER_ID: '2f5dc33c-0169-47e2-ac2c-241105d0ff28'
       ASC_API_PRIVATE_KEY_P8: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_P8 }}
     steps:
@@ -115,6 +116,13 @@ jobs:
                   state = attrs.get("processingState", "")
                   print("Latest KUTANA build:", latest["id"], "number:", attrs.get("version"),
                         "processing:", state, flush=True)
+                  expected_build = os.environ.get("ASC_EXPECTED_BUILD", "")
+                  if expected_build and attrs.get("version") != expected_build:
+                      print("Waiting for uploaded build", expected_build, flush=True)
+                      if time.monotonic() >= deadline:
+                          raise SystemExit("Expected build not visible within processing window; check App Store Connect and rerun.")
+                      time.sleep(30)
+                      continue
                   if earliest is not None:
                       uploaded_text = attrs.get("uploadedDate", "")
                       uploaded = (datetime.fromisoformat(uploaded_text.replace("Z", "+00:00"))
