@@ -95,23 +95,7 @@ jobs:
           if not used:
               raise SystemExit("No suitable iPhone simulator available")
           PY
-          while IFS=
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: KUTANA-build-diagnostics
-          path: ${{ runner.temp }}/kutana-xcodebuild.log
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Upload simulator build
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: KUTANA-iOS-simulator
-          path: ${{ runner.temp }}/KUTANA-simulator-app.zip
-          if-no-files-found: error
-          retention-days: 7
-\t' read -r label udid device_name; do
+          while IFS=$'\t' read -r label udid device_name; do
             echo "Capturing $label on $device_name"
             xcrun simctl boot "$udid"
             xcrun simctl bootstatus "$udid" -b
