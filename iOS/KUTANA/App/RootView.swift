@@ -689,19 +689,8 @@ struct ListingPhotoUploader: View {
                 HStack(spacing: 10) {
                     ForEach(images) { item in
                         if let url = identity.configuration?.publicListingImageURL(path: item.storage_path) {
-                            VStack(spacing: 6) {
-                                AsyncImage(url: url.appending(queryItems: [URLQueryItem(name: "v", value: String(photoRevision))])) { photo in
-                                    photo.resizable().scaledToFill()
-                                } placeholder: {
-                                    ProgressView()
-                                }
-                                .frame(width: 108, height: 108)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .accessibilityLabel("Photo d'annonce")
-                                ListingPhotoReplacement {
-                                    Task { await replace($0, path: item.storage_path) }
-                                }
-                                .disabled(uploading)
+                            ListingPhotoReplacement(url: url, revision: photoRevision, disabled: uploading) {
+                                Task { await replace($0, path: item.storage_path) }
                             }
                         }
                     }
@@ -784,13 +773,31 @@ struct ListingPhotoUploader: View {
 }
 
 private struct ListingPhotoReplacement: View {
+    let url: URL
+    let revision: Int
+    let disabled: Bool
     let onSelect: (PhotosPickerItem) -> Void
     @State private var selection: PhotosPickerItem?
 
+    private var imageURL: URL {
+        url.appending(queryItems: [URLQueryItem(name: "v", value: String(revision))])
+    }
+
     var body: some View {
-        PhotosPicker(selection: $selection, matching: .images) {
-            Label("Remplacer", systemImage: "arrow.triangle.2.circlepath")
-                .font(.caption.weight(.semibold))
+        VStack(spacing: 6) {
+            AsyncImage(url: imageURL) { photo in
+                photo.resizable().scaledToFill()
+            } placeholder: {
+                ProgressView()
+            }
+            .frame(width: 108, height: 108)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityLabel("Photo d'annonce")
+            PhotosPicker(selection: $selection, matching: .images) {
+                Label("Remplacer", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption.weight(.semibold))
+            }
+            .disabled(disabled)
         }
         .onChange(of: selection) { _, item in
             if let item { onSelect(item) }
