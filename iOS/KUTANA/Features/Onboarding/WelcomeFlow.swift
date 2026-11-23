@@ -162,26 +162,26 @@ private struct KutanaSplashView: View {
                 let landingFeedback = UIImpactFeedbackGenerator(style: .soft)
                 landingFeedback.prepare()
 
-                withAnimation(.spring(response: 0.66, dampingFraction: 0.72)) {
+                withAnimation(.spring(response: 0.95, dampingFraction: 0.76)) {
                     logoOffset = 0
                     logoScale = 1
                 }
-                try? await Task.sleep(for: .milliseconds(590))
+                try? await Task.sleep(for: .milliseconds(1000))
                 guard !Task.isCancelled else { return }
                 landingFeedback.impactOccurred(intensity: 0.65)
 
                 // A continuous typographic reveal, not six abrupt letter changes.
-                withAnimation(.easeInOut(duration: 0.78)) {
+                withAnimation(.easeInOut(duration: 1.2)) {
                     letteringProgress = 1
                 }
-                try? await Task.sleep(for: .milliseconds(680))
+                try? await Task.sleep(for: .milliseconds(1200))
                 guard !Task.isCancelled else { return }
 
-                withAnimation(.easeOut(duration: 0.36)) {
+                withAnimation(.easeOut(duration: 0.5)) {
                     subtitleOpacity = 1
                     subtitleOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(470))
+                try? await Task.sleep(for: .milliseconds(1600))
             }
             guard !Task.isCancelled else { return }
             onFinished()
