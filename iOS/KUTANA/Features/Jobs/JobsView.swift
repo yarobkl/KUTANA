@@ -198,9 +198,13 @@ struct JobDetailView: View {
                 if sent { Label("Candidature envoyée", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 KutanaPrimaryButton(title: sending ? "Envoi en cours…" : "Postuler à cette offre") {
-                    Task { await apply() }
+                    if identity.authenticated {
+                        Task { await apply() }
+                    } else {
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
                 }
-                .disabled(preview || !identity.authenticated || sending || sent || isMine)
+                .disabled(preview || sending || sent || isMine)
                 if isMine {
                     Text("C'est votre offre : vous ne pouvez pas y postuler. Un autre compte candidat peut le faire.")
                         .font(.footnote).foregroundStyle(.secondary)

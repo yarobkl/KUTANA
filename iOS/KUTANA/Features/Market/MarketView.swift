@@ -234,9 +234,13 @@ private struct ListingDetailView: View {
                     Text(errorMessage).font(.footnote).foregroundStyle(.red)
                 }
                 KutanaPrimaryButton(title: contacting ? "Ouverture…" : "Contacter le vendeur") {
-                    Task { await contactSeller() }
+                    if identity.authenticated {
+                        Task { await contactSeller() }
+                    } else {
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
                 }
-                .disabled(contacting || !identity.authenticated || isMine || item.status == "sold")
+                .disabled(contacting || isMine || item.status == "sold")
                 if item.status == "sold" {
                     Text("Cet article a été vendu.").font(.footnote).foregroundStyle(.secondary)
                 }

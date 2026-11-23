@@ -11,40 +11,35 @@ struct WelcomeFlow: View {
     @AppStorage("kutana.hasSeenIntroduction") private var hasSeenIntroduction = false
     @State private var route: WelcomePage = .login
     @State private var splashFinished = false
+    @State private var showAuthentication = false
 
     var body: some View {
-        Group {
-            if identity.authenticated {
-                RootView(allowNotificationPrompt: splashFinished)
-            } else {
-                NavigationStack {
-                    switch route {
-                    case .login:
-                        KutanaLoginView(
-                            createAccount: { route = .registration },
-                            resetPassword: { route = .reset }
-                        )
-                    case .introduction:
-                        KutanaIntroductionView(
-                            skip: { hasSeenIntroduction = true; route = .login },
-                            continueAction: { hasSeenIntroduction = true; route = .login }
-                        )
-                    case .registration:
-                        KutanaRegistrationView(back: { route = .login })
-                    case .reset:
-                        KutanaResetPasswordView(back: { route = .login })
-                    }
+        RootView(allowNotificationPrompt: splashFinished)
+        .sheet(isPresented: $showAuthentication) {
+            NavigationStack {
+                switch route {
+                case .login, .introduction:
+                    KutanaLoginView(createAccount: { route = .registration },
+                                    resetPassword: { route = .reset })
+                case .registration:
+                    KutanaRegistrationView(back: { route = .login })
+                case .reset:
+                    KutanaResetPasswordView(back: { route = .login })
                 }
-                .toolbar(.hidden, for: .navigationBar)
             }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-request-login"))) { _ in
+            route = .login
+            showAuthentication = true
+        }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            if authenticated { showAuthentication = false }
         }
         .tint(KutanaTheme.blue)
         .overlay {
             if !splashFinished {
                 KutanaSplashView {
-                    if !identity.authenticated {
-                        route = hasSeenIntroduction ? .login : .introduction
-                    }
                     if reduceMotion {
                         splashFinished = true
                     } else {

@@ -19,11 +19,11 @@ struct RootView: View {
                 .tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
             MarketView(unreadCount: unreadNotifications).modifier(KutanaTabEntrance())
                 .tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
-            PublishView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { PublishView() } else { KutanaGuestGate(title: "Publier", description: "Connectez-vous pour publier.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
-            MessagesView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { MessagesView() } else { KutanaGuestGate(title: "Messages", description: "Connectez-vous pour accéder à vos conversations.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }.tag(3)
-            ProfileView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { ProfileView() } else { KutanaGuestGate(title: "Profil", description: "Connectez-vous pour accéder à votre compte.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Profil", systemImage: "person.crop.circle") }
                 .badge(unreadNotifications).tag(4)
         }
@@ -814,6 +814,25 @@ private struct ListingPhotoReplacement: View {
         .onChange(of: selection) { _, item in
             if let item { onSelect(item) }
             selection = nil
+        }
+    }
+}
+
+private struct KutanaGuestGate: View {
+    let title: String
+    let description: String
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView {
+                Label(title, systemImage: "person.crop.circle")
+            } description: {
+                Text(description)
+            } actions: {
+                Button("Se connecter") {
+                    NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                }.buttonStyle(.borderedProminent)
+            }
+            .navigationTitle(title)
         }
     }
 }
