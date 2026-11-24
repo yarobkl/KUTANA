@@ -93,6 +93,7 @@ struct KutanaNotification: Identifiable, Codable, Sendable {
     let read_at: Date?
 }
 
+struct ListingFavorite: Codable, Sendable { let listing_id: UUID }
 struct JobFavorite: Codable, Sendable { let job_id: UUID }
 struct JobAlert: Identifiable, Codable, Sendable {
     let id: UUID

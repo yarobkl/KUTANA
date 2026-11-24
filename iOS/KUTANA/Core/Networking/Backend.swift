@@ -197,6 +197,22 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+    func listingFavorites(accessToken: String) async throws -> [ListingFavorite] {
+        try await get("luka_listing_favorites", query: [URLQueryItem(name: "select", value: "listing_id")], accessToken: accessToken)
+    }
+
+    func addListingFavorite(listingID: UUID, userID: UUID, accessToken: String) async throws {
+        try await write("luka_listing_favorites", method: "POST",
+                        query: [URLQueryItem(name: "on_conflict", value: "user_id,listing_id")],
+                        body: ["listing_id": listingID.uuidString.lowercased(), "user_id": userID.uuidString.lowercased()],
+                        accessToken: accessToken, prefer: "resolution=ignore-duplicates,return=minimal")
+    }
+
+    func removeListingFavorite(listingID: UUID, accessToken: String) async throws {
+        try await write("luka_listing_favorites", method: "DELETE",
+                        query: [URLQueryItem(name: "listing_id", value: "eq.\(listingID.uuidString.lowercased())")], accessToken: accessToken)
+    }
+
     func favorites(accessToken: String) async throws -> [JobFavorite] {
         try await get("job_favorites", query: [URLQueryItem(name: "select", value: "job_id")], accessToken: accessToken)
     }

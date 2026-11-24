@@ -121,6 +121,18 @@ final class StubProtocol: URLProtocol {
         StubProtocol.handler = { _ in (200, Data("[]".utf8)) }
         let unshared = try await profileAPI.sharedApplicationLocation(applicationID: commentID, accessToken: "profile-token")
         assert(unshared == nil)
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/luka_listing_favorites")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer profile-token")
+            if request.httpMethod == "GET" {
+                return (200, Data(#"[{"listing_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}]"#.utf8))
+            }
+            return (204, Data())
+        }
+        let listingFavorites = try await profileAPI.listingFavorites(accessToken: "profile-token")
+        assert(listingFavorites.map(\.listing_id) == [commentID])
+        try await profileAPI.addListingFavorite(listingID: commentID, userID: commentID, accessToken: "profile-token")
+        try await profileAPI.removeListingFavorite(listingID: commentID, accessToken: "profile-token")
         print("Auth/network smoke tests: OK")
     }
 }

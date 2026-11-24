@@ -10,7 +10,7 @@ struct MarketView: View {
     @State private var priceLimit: Int64?
     @State private var query = ""
     @State private var favoritesOnly = false
-    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
+    @State private var favoriteIDs: Set<String> = []
     @State private var loading = false
     @State private var hasLoaded = false
     @State private var errorMessage: String?
@@ -27,11 +27,6 @@ struct MarketView: View {
                 (priceLimit.map { item.price_xaf <= $0 } ?? true) &&
                 (!favoritesOnly || favoriteIDs.contains(item.id.uuidString.lowercased()))
         }
-    }
-
-    private var favoriteIDs: Set<String> {
-        guard identity.authenticated else { return [] }
-        return Set(savedFavorites.split(separator: ",").map(String.init))
     }
 
     private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
@@ -64,9 +59,13 @@ struct MarketView: View {
             }
             .refreshable { await load() }
             .onChange(of: identity.authenticated) { _, authenticated in
-                if !authenticated { favoritesOnly = false }
+                if !authenticated { favoritesOnly = false; favoriteIDs = [] }
+                else { Task { await loadFavorites() } }
             }
-            .task { await load() }
+            .task { await load(); await loadFavorites() }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-listing-favorites-changed"))) { _ in
+                Task { await loadFavorites() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
                 Task { await load() }
             }
@@ -180,6 +179,20 @@ struct MarketView: View {
         .padding(.vertical, 5)
     }
 
+    @MainActor private func loadFavorites() async {
+        guard identity.authenticated, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { favoriteIDs = []; return }
+        do {
+            let rows = try await KutanaAPI(configuration: configuration).listingFavorites(accessToken: token)
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject else { return }
+            favoriteIDs = Set(rows.map { $0.listing_id.uuidString.lowercased() })
+        } catch {
+            errorMessage = "Impossible de charger vos favoris. Réessayez."
+        }
+    }
+
     @MainActor private func load() async {
         guard let configuration = identity.configuration else { return }
         loading = true
@@ -206,16 +219,15 @@ private struct ListingDetailView: View {
     @State private var photos: [ListingImageRecord] = []
     @State private var photoIndex = 0
     @State private var showingAlbum = false
-    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
+    @State private var isFavorite = false
+    @State private var favoriteBusy = false
+    @State private var favoriteLoaded = false
+    @State private var favoriteRevision = 0
 
     private var photoURLs: [URL] {
         let paths = photos.isEmpty ? (item.listing_images ?? []).map(\.storage_path) :
             photos.sorted { $0.sort_order < $1.sort_order }.map(\.storage_path)
         return paths.compactMap { identity.configuration?.publicListingImageURL(path: $0) }
-    }
-
-    private var isFavorite: Bool {
-        identity.authenticated && savedFavorites.split(separator: ",").contains(Substring(item.id.uuidString.lowercased()))
     }
 
     var body: some View {
@@ -309,7 +321,11 @@ private struct ListingDetailView: View {
                     .padding(.bottom, 30)
             }
         }
-        .task { await loadPhotos() }
+        .task { await loadPhotos(); await loadFavorite() }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            if !authenticated { isFavorite = false; favoriteLoaded = false; favoriteRevision += 1 }
+            else { Task { await loadFavorite() } }
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
             pendingAction = nil
         }
@@ -321,7 +337,7 @@ private struct ListingDetailView: View {
                 guard !isMine, item.status != "sold" else { return }
                 Task { await contactSeller() }
             case .favorite:
-                if !isFavorite { toggleFavorite() }
+                Task { await setFavorite(true) }
             }
         }
         .toolbar {
@@ -333,12 +349,15 @@ private struct ListingDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
                        systemImage: isFavorite ? "heart.fill" : "heart") {
-                    if identity.authenticated { toggleFavorite() }
+                    if identity.authenticated {
+                        Task { if favoriteLoaded { await setFavorite(!isFavorite) } else { await loadFavorite() } }
+                    }
                     else {
                         pendingAction = .favorite
                         NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
                     }
                 }
+                    .disabled(favoriteBusy)
                     .accessibilityLabel(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris")
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -352,12 +371,45 @@ private struct ListingDetailView: View {
         }
     }
 
-    private func toggleFavorite() {
-        var ids = Set(savedFavorites.split(separator: ",").map(String.init))
-        let id = item.id.uuidString.lowercased()
-        if !ids.insert(id).inserted { ids.remove(id) }
-        savedFavorites = ids.sorted().joined(separator: ",")
+    @MainActor private func loadFavorite() async {
+        guard identity.authenticated, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { return }
+        let revision = favoriteRevision
+        do {
+            let rows = try await KutanaAPI(configuration: configuration).listingFavorites(accessToken: token)
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject, revision == favoriteRevision else { return }
+            isFavorite = rows.contains { $0.listing_id == item.id }
+            favoriteLoaded = true
+        } catch { errorMessage = "Impossible de charger ce favori. Réessayez." }
     }
+
+    @MainActor private func setFavorite(_ desired: Bool) async {
+        guard !favoriteBusy, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour gérer vos favoris."
+            return
+        }
+        favoriteBusy = true
+        favoriteRevision += 1
+        defer { favoriteBusy = false }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            if desired {
+                try await api.addListingFavorite(listingID: item.id, userID: subject, accessToken: token)
+            } else {
+                try await api.removeListingFavorite(listingID: item.id, accessToken: token)
+            }
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject else { return }
+            isFavorite = desired
+            favoriteLoaded = true
+            NotificationCenter.default.post(name: Notification.Name("luka-listing-favorites-changed"), object: nil)
+        } catch { errorMessage = "Impossible d’enregistrer ce favori. Réessayez." }
+    }
+
 
 
     @MainActor private func loadPhotos() async {
