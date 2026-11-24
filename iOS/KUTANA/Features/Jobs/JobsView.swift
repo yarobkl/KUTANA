@@ -120,6 +120,7 @@ struct JobsView: View {
                             .padding(.vertical, 9)
                             .modifier(KutanaTransitionSource(id: job.id, namespace: navigationNamespace))
                         }
+                        .accessibilityIdentifier("luka-job-\(job.id.uuidString.lowercased())")
                     }
                     if visible.isEmpty && !loading && hasLoaded {
                         ContentUnavailableView("Aucune offre", systemImage: "briefcase",

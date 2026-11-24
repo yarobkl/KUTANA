@@ -63,6 +63,7 @@ struct LukaCommentsView: View {
                     }
                 }
                 TextField("Votre commentaire", text: $draft, axis: .vertical)
+                    .accessibilityIdentifier("luka-comment-draft")
                     .lineLimit(2...5)
                     .textInputAutocapitalization(.sentences)
                     .padding(12)
