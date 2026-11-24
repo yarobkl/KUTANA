@@ -108,6 +108,28 @@ actor KutanaAPI {
                         ], accessToken: accessToken, prefer: "resolution=merge-duplicates,return=minimal")
     }
 
+    struct SharedApplicationLocation: Decodable {
+        let country_code: String
+        let city: String
+        let commune: String
+    }
+
+    func sharedApplicationLocation(applicationID: UUID, accessToken: String) async throws -> SharedApplicationLocation? {
+        guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
+        let url = configuration.endpoint.appending(path: "rest/v1/rpc/luka_application_location")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["p_application": applicationID.uuidString.lowercased()])
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try decoder.decode([SharedApplicationLocation].self, from: data).first
+    }
+
     func publicComments(kind: String, contentID: UUID) async throws -> [LukaComment] {
         try await get("luka_comments", query: [
             URLQueryItem(name: "select", value: "id,kind,content_id,parent_id,author_id,author_name,body,created_at,deleted_at"),

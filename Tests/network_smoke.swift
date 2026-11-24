@@ -110,6 +110,17 @@ final class StubProtocol: URLProtocol {
         }
         let unconfirmedEmail = try await auth.currentUserEmail(accessToken: "profile-token")
         assert(unconfirmedEmail == nil)
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/rpc/luka_application_location")
+            assert(request.httpMethod == "POST")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer profile-token")
+            return (200, Data(#"[{"country_code":"CG","city":"Brazzaville","commune":"Bacongo"}]"#.utf8))
+        }
+        let location = try await profileAPI.sharedApplicationLocation(applicationID: commentID, accessToken: "profile-token")
+        assert(location?.city == "Brazzaville" && location?.country_code == "CG")
+        StubProtocol.handler = { _ in (200, Data("[]".utf8)) }
+        let unshared = try await profileAPI.sharedApplicationLocation(applicationID: commentID, accessToken: "profile-token")
+        assert(unshared == nil)
         print("Auth/network smoke tests: OK")
     }
 }
