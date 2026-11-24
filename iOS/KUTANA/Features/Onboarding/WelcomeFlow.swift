@@ -11,40 +11,78 @@ struct WelcomeFlow: View {
     @AppStorage("kutana.hasSeenIntroduction") private var hasSeenIntroduction = false
     @State private var route: WelcomePage = .login
     @State private var splashFinished = false
+    @State private var showAuthentication = false
+    @State private var showProfileCompletion = false
+    @State private var profileCheckError = false
+    @State private var profileChecking = false
+    @State private var profileReady = false
 
     var body: some View {
-        Group {
+        RootView(allowNotificationPrompt: splashFinished)
+        .accessibilityHidden(!splashFinished)
+        .allowsHitTesting(!identity.authenticated || profileReady)
+        .sheet(isPresented: $showAuthentication, onDismiss: {
             if identity.authenticated {
-                RootView(allowNotificationPrompt: splashFinished)
+                Task { await checkProfile() }
             } else {
-                NavigationStack {
-                    switch route {
-                    case .login:
-                        KutanaLoginView(
-                            createAccount: { route = .registration },
-                            resetPassword: { route = .reset }
-                        )
-                    case .introduction:
-                        KutanaIntroductionView(
-                            skip: { hasSeenIntroduction = true; route = .login },
-                            continueAction: { hasSeenIntroduction = true; route = .login }
-                        )
-                    case .registration:
-                        KutanaRegistrationView(back: { route = .login })
-                    case .reset:
-                        KutanaResetPasswordView(back: { route = .login })
-                    }
-                }
-                .toolbar(.hidden, for: .navigationBar)
+                NotificationCenter.default.post(name: Notification.Name("kutana-login-cancelled"), object: nil)
             }
+        }) {
+            NavigationStack {
+                switch route {
+                case .login, .introduction:
+                    KutanaLoginView(createAccount: { route = .registration },
+                                    resetPassword: { route = .reset })
+                case .registration:
+                    KutanaRegistrationView(back: { route = .login })
+                case .reset:
+                    KutanaResetPasswordView(back: { route = .login })
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .preferredColorScheme(.light)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-request-login"))) { _ in
+            route = .login
+            showAuthentication = true
+        }
+        .fullScreenCover(isPresented: $showProfileCompletion, onDismiss: {
+            let event = identity.authenticated && profileReady ? "luka-profile-ready" : "kutana-login-cancelled"
+            NotificationCenter.default.post(name: Notification.Name(event), object: nil)
+        }) {
+            NavigationStack {
+                LukaPrivateProfileView(completionMode: true) {
+                    profileReady = true
+                    showProfileCompletion = false
+                }
+            }
+            .interactiveDismissDisabled()
+        }
+        .alert("Impossible de vérifier votre profil", isPresented: $profileCheckError) {
+            Button("Réessayer") { Task { await checkProfile() } }
+            Button("Continuer en visiteur", role: .cancel) {
+                identity.signOut()
+                NotificationCenter.default.post(name: Notification.Name("kutana-login-cancelled"), object: nil)
+            }
+        } message: {
+            Text("Vérifiez votre connexion puis réessayez.")
+        }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            if authenticated {
+                if showAuthentication { showAuthentication = false }
+                else { Task { await checkProfile() } }
+            } else {
+                profileReady = false
+                showProfileCompletion = false
+            }
+        }
+        .onChange(of: splashFinished) { _, finished in
+            if finished && identity.authenticated { Task { await checkProfile() } }
         }
         .tint(KutanaTheme.blue)
         .overlay {
             if !splashFinished {
                 KutanaSplashView {
-                    if !identity.authenticated {
-                        route = hasSeenIntroduction ? .login : .introduction
-                    }
                     if reduceMotion {
                         splashFinished = true
                     } else {
@@ -59,6 +97,34 @@ struct WelcomeFlow: View {
         }
         .task { await identity.restore() }
     }
+
+    @MainActor private func checkProfile() async {
+        guard identity.authenticated, splashFinished, !showAuthentication,
+              !profileChecking, !profileReady, !showProfileCompletion else { return }
+        profileChecking = true
+        defer { profileChecking = false }
+        guard let config = identity.configuration, let token = await identity.freshAccessToken() else {
+            if identity.authenticated { profileCheckError = true }
+            return
+        }
+        guard let subject = AccessTokenMetadata.subject(token) else {
+            profileCheckError = true
+            return
+        }
+        do {
+            let profile = try await KutanaAPI(configuration: config).privateProfile(accessToken: token)
+            guard identity.authenticated, let currentToken = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(currentToken) == subject else { return }
+            if profile == nil {
+                showProfileCompletion = true
+            } else {
+                profileReady = true
+                NotificationCenter.default.post(name: Notification.Name("luka-profile-ready"), object: nil)
+            }
+        } catch {
+            if identity.authenticated { profileCheckError = true }
+        }
+    }
 }
 
 private struct KutanaLogo: View {
@@ -66,24 +132,24 @@ private struct KutanaLogo: View {
     var body: some View {
         VStack(spacing: large ? 10 : 0) {
             HStack(spacing: 12) {
-                Image("kutana_mark")
+                Image("luka_mark")
                     .resizable()
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: large ? 23 : 17, style: .continuous))
                     .frame(width: large ? 110 : 68, height: large ? 110 : 68)
                 if !large {
-                    Text("KUTANA")
+                    Text("LUKA")
                         .font(.system(size: 30, weight: .heavy))
                         .foregroundStyle(KutanaTheme.ink)
                 }
             }
             if large {
-                Text("KUTANA").font(.system(size: 44, weight: .heavy))
+                Text("LUKA").font(.system(size: 44, weight: .heavy))
                     .foregroundStyle(KutanaTheme.ink)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("KUTANA")
+        .accessibilityLabel("LUKA")
     }
 }
 
@@ -95,7 +161,8 @@ private struct KutanaSplashView: View {
     @State private var letteringProgress: CGFloat = 0
     @State private var subtitleOpacity: Double = 0
     @State private var subtitleOffset: CGFloat = 9
-    private let brandName = "BILOKO’S"
+    @State private var wavePhase: CGFloat = 0
+    private let brandName = "LUKA"
 
     var body: some View {
         GeometryReader { proxy in
@@ -103,7 +170,7 @@ private struct KutanaSplashView: View {
             ZStack {
                 Color.white.ignoresSafeArea()
 
-                BottomWaveShape()
+                BottomWaveShape(phase: wavePhase)
                     .fill(LinearGradient(
                         colors: [KutanaTheme.blue, Color(red: 0.02, green: 0.25, blue: 0.85)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
@@ -111,22 +178,20 @@ private struct KutanaSplashView: View {
                     .frame(height: min(240, max(155, proxy.size.height * 0.28)))
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(edges: .bottom)
+                    .onAppear {
+                        guard !reduceMotion else { return }
+                        withAnimation(.linear(duration: 3.2).repeatForever(autoreverses: false)) {
+                            wavePhase = .pi * 2
+                        }
+                    }
 
                 VStack(spacing: 19) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: side * 0.23, style: .continuous)
-                            .fill(KutanaTheme.blue.gradient)
-                        Text("BLK")
-                            .font(.system(size: side * 0.35, weight: .black, design: .rounded))
-                            .tracking(-1.5)
-                            .foregroundStyle(.white)
-                            .minimumScaleFactor(0.8)
-                            .lineLimit(1)
-                    }
-                    .frame(width: side, height: side)
-                    .shadow(color: KutanaTheme.blue.opacity(0.22), radius: 15, x: 0, y: 9)
-                    .offset(y: logoOffset)
-                    .scaleEffect(logoScale)
+                    Image("luka_mark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: side, height: side)
+                        .offset(y: logoOffset)
+                        .scaleEffect(logoScale)
 
                     VStack(spacing: 8) {
                         Text(brandName)
@@ -142,7 +207,7 @@ private struct KutanaSplashView: View {
                             }
                             .accessibilityLabel(brandName)
 
-                        Text("Le marché des opportunités")
+                        Text("Tout ce que tu cherches, au même endroit.")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                             .minimumScaleFactor(0.8)
@@ -187,23 +252,34 @@ private struct KutanaSplashView: View {
                     subtitleOpacity = 1
                     subtitleOffset = 0
                 }
-                try? await Task.sleep(for: .milliseconds(2100))
+                try? await Task.sleep(for: .milliseconds(700))
             }
             guard !Task.isCancelled else { return }
             onFinished()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("BLK. BILOKO’S. Le marché des opportunités.")
+        .accessibilityLabel("LUKA. Tout ce que tu cherches, au même endroit.")
+        .accessibilityIdentifier("luka-splash")
     }
 }
 
 private struct BottomWaveShape: Shape {
+    var phase: CGFloat = 0
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
+
     func path(in rect: CGRect) -> Path {
+        let movement = sin(phase) * rect.height * 0.075
+        let trailingMovement = cos(phase) * rect.height * 0.045
         var path = Path()
         path.move(to: CGPoint(x: 0, y: rect.height))
-        path.addCurve(to: CGPoint(x: rect.width, y: rect.height * 0.15),
-                      control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85),
-                      control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1))
+        path.addCurve(
+            to: CGPoint(x: rect.width, y: rect.height * 0.15 + trailingMovement),
+            control1: CGPoint(x: rect.width * 0.45, y: rect.height * 0.85 + movement),
+            control2: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1 - movement)
+        )
         path.addLine(to: CGPoint(x: rect.width, y: rect.height))
         path.closeSubpath()
         return path
@@ -286,6 +362,8 @@ private struct KutanaLoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
+    @FocusState private var loginField: LoginField?
+    private enum LoginField: Hashable { case email, password }
     @EnvironmentObject private var identity: KutanaSessionStore
     var body: some View {
         ScrollView {
@@ -296,10 +374,17 @@ private struct KutanaLoginView: View {
                     TextField("Adresse e-mail", text: $email)
                         .textContentType(.emailAddress).keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .submitLabel(.next).focused($loginField, equals: .email)
+                        .onSubmit { loginField = .password }
                     HStack {
                         Group { if showPassword { TextField("Mot de passe", text: $password) }
                         else { SecureField("Mot de passe", text: $password) } }
                         .textContentType(.password)
+                        .submitLabel(.go).focused($loginField, equals: .password)
+                        .onSubmit {
+                            guard identity.isConfigured, !identity.busy, !email.isEmpty, !password.isEmpty else { return }
+                            Task { await identity.signIn(email: email, password: password) }
+                        }
                         Button { showPassword.toggle() } label: {
                             Image(systemName: showPassword ? "eye" : "eye.slash")
                         }.accessibilityLabel(showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe")
@@ -336,55 +421,184 @@ private struct KutanaLoginView: View {
 
 private struct KutanaRegistrationView: View {
     let back: () -> Void
-    @State private var fullName = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
+    @State private var birthDate: Date?
+    @State private var phoneRegion = "CG"
+    @State private var phone = ""
+    @State private var country = "CG"
+    @State private var city = ""
+    @State private var commune = ""
+    @State private var shareLocation = false
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
+    @FocusState private var focusedField: RegistrationField?
+    private enum RegistrationField: Hashable { case firstName, lastName, phone, city, commune, email, password, confirmation }
     @State private var validationError: String?
+    @State private var staging = false
     @EnvironmentObject private var identity: KutanaSessionStore
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: back) { Image(systemName: "chevron.left").font(.title3) }
-                KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez KUTANA pour trouver un emploi, publier vos annonces et échanger facilement.")
+                    .accessibilityLabel("Retour")
+                    .disabled(identity.busy)
+                KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez LUKA pour trouver un emploi, publier vos annonces et échanger facilement.")
                     .padding(.top, 33)
-                TextField("Nom et prénom", text: $fullName).textContentType(.name).kutanaField()
+                TextField("Prénom", text: $firstName)
+                    .textContentType(.givenName).textInputAutocapitalization(.words)
+                    .submitLabel(.next).focused($focusedField, equals: .firstName)
+                    .onSubmit { focusedField = .lastName }.kutanaField()
+                TextField("Nom", text: $lastName)
+                    .textContentType(.familyName).textInputAutocapitalization(.words)
+                    .submitLabel(.next).focused($focusedField, equals: .lastName)
+                    .onSubmit { focusedField = .phone }.kutanaField()
+
+                if birthDate != nil {
+                    DatePicker("Date de naissance", selection: Binding(
+                        get: { birthDate ?? LukaProfileSupport.defaultBirthDate },
+                        set: { birthDate = $0 }),
+                        in: LukaProfileSupport.earliestBirthDate...Date(), displayedComponents: .date)
+                        .padding(.vertical, 8)
+                } else {
+                    Button("Indiquer ma date de naissance") {
+                        birthDate = LukaProfileSupport.defaultBirthDate
+                    }.kutanaField()
+                }
+
+                Picker("Indicatif téléphonique", selection: $phoneRegion) {
+                    ForEach(LukaProfileSupport.phoneRegions, id: \.self) { region in
+                        if let code = LukaProfileSupport.phoneUtility.countryCode(for: region) {
+                            Text("\(LukaProfileSupport.regionName(region)) +\(code)").tag(region)
+                        }
+                    }
+                }.pickerStyle(.menu).kutanaField()
+                TextField("Numéro de téléphone", text: $phone)
+                    .keyboardType(.phonePad).textContentType(.telephoneNumber)
+                    .focused($focusedField, equals: .phone).kutanaField()
+
+                Picker("Pays", selection: $country) {
+                    ForEach(LukaProfileSupport.regions, id: \.self) { region in
+                        Text(LukaProfileSupport.regionName(region)).tag(region)
+                    }
+                }.pickerStyle(.menu).kutanaField()
+                TextField("Ville", text: $city)
+                    .textInputAutocapitalization(.words).submitLabel(.next)
+                    .focused($focusedField, equals: .city).onSubmit { focusedField = .commune }.kutanaField()
+                TextField("Commune", text: $commune)
+                    .textInputAutocapitalization(.words).submitLabel(.next)
+                    .focused($focusedField, equals: .commune).onSubmit { focusedField = .email }.kutanaField()
                 TextField("Adresse e-mail", text: $email)
-                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled().kutanaField()
-                SecureField("Mot de passe", text: $password).textContentType(.newPassword).kutanaField()
-                SecureField("Confirmer le mot de passe", text: $confirmation).textContentType(.newPassword).kutanaField()
+                    .textContentType(.emailAddress).keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .submitLabel(.next).focused($focusedField, equals: .email)
+                    .onSubmit { focusedField = .password }.kutanaField()
+                SecureField("Mot de passe", text: $password).textContentType(.newPassword)
+                    .submitLabel(.next).focused($focusedField, equals: .password)
+                    .onSubmit { focusedField = .confirmation }.kutanaField()
+                SecureField("Confirmer le mot de passe", text: $confirmation).textContentType(.newPassword)
+                    .submitLabel(.done).focused($focusedField, equals: .confirmation)
+                    .onSubmit { focusedField = nil }.kutanaField()
+
+                Toggle("Partager ma localisation avec les recruteurs", isOn: $shareLocation)
+                Text("Pour vos candidatures, les recruteurs peuvent voir votre pays, ville et commune si vous l'autorisez. Votre téléphone et votre date de naissance restent privés.")
+                    .font(.caption).foregroundStyle(.secondary)
                 if let error = validationError ?? identity.errorMessage {
                     Text(error).font(.footnote).foregroundStyle(.red)
                 }
                 KutanaPrimaryButton(title: identity.busy ? "Création en cours…" : "Créer mon compte") {
-                    guard password == confirmation else {
-                        validationError = "Les deux mots de passe ne correspondent pas."
-                        return
-                    }
-                    validationError = nil
-                    Task {
-                        if await identity.signUp(email: email, password: password, fullName: fullName) {
-                            back()
-                        }
-                    }
+                    Task { await submit() }
                 }
-                    .disabled(!identity.isConfigured || identity.busy || fullName.isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty)
-                    .padding(.top, 30)
+                .disabled(!identity.isConfigured || identity.busy || staging || email.isEmpty || password.isEmpty || confirmation.isEmpty)
+                .padding(.top, 24)
                 Text("Mot de passe : 12 caractères minimum.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("ou vous inscrire avec")
                     .font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity).padding(.top, 12)
-                KutanaSocialSignInButtons()
-                    .padding(.bottom, 4)
+                KutanaSocialSignInButtons().padding(.bottom, 4)
                 HStack {
                     Spacer()
                     Text("Vous avez déjà un compte ?").foregroundStyle(.secondary)
                     Button("Se connecter", action: back).fontWeight(.semibold)
                     Spacer()
-                }.font(.footnote).padding(.top, 65)
+                }.font(.footnote).padding(.top, 40)
             }.padding(.horizontal, 25).padding(.top, 20)
-        }.background(.white)
+        }
+        .background(.white)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Suivant") {
+                    switch focusedField {
+                    case .firstName: focusedField = .lastName
+                    case .lastName: focusedField = .phone
+                    case .phone: focusedField = .city
+                    case .city: focusedField = .commune
+                    case .commune: focusedField = .email
+                    case .email: focusedField = .password
+                    case .password: focusedField = .confirmation
+                    default: focusedField = nil
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor private func submit() async {
+        guard !staging else { return }
+        staging = true
+        defer { staging = false }
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCommune = commune.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard (1...80).contains(first.count), (1...80).contains(last.count),
+              (1...120).contains(cleanCity.count), (1...120).contains(cleanCommune.count),
+              let birthDate else {
+            validationError = "Renseignez votre identité, votre date de naissance, votre ville et votre commune."
+            return
+        }
+        guard password == confirmation else {
+            validationError = "Les deux mots de passe ne correspondent pas."
+            return
+        }
+        guard password.count >= 12 else {
+            validationError = "Le mot de passe doit contenir au moins 12 caractères."
+            return
+        }
+        let normalizedPhone: String
+        do {
+            let parsed = try LukaProfileSupport.phoneUtility.parse(phone, withRegion: phoneRegion)
+            guard let selectedCode = LukaProfileSupport.phoneUtility.countryCode(for: phoneRegion),
+                  parsed.countryCode == selectedCode else {
+                validationError = "Le numéro ne correspond pas à l'indicatif choisi."
+                return
+            }
+            normalizedPhone = LukaProfileSupport.phoneUtility.format(parsed, toType: .e164)
+        } catch {
+            validationError = "Indiquez un numéro de téléphone valide pour l'indicatif choisi."
+            return
+        }
+
+        let draft = LukaSignupDraft(email: cleanEmail, first_name: first, last_name: last,
+            birth_date: LukaProfileSupport.dateFormatter().string(from: birthDate),
+            phone_e164: normalizedPhone, phone_region: phoneRegion, country_code: country,
+            city: cleanCity, commune: cleanCommune, share_location_with_recruiters: shareLocation)
+        let previousDrafts = LukaSignupDraftStore.backup()
+        do { try LukaSignupDraftStore.save(draft) }
+        catch {
+            LukaSignupDraftStore.restore(previousDrafts)
+            validationError = error.localizedDescription
+            return
+        }
+        validationError = nil
+        let created = await identity.signUp(email: cleanEmail, password: password, fullName: "\(first) \(last)")
+        if created { back() }
+        else { LukaSignupDraftStore.restore(previousDrafts) }
     }
 }
 
@@ -436,7 +650,7 @@ private struct KutanaSocialSignInButtons: View {
                         return
                     }
                     appleNonce = nil
-                    Task { await identity.signInWithApple(idToken: token, nonce: nonce) }
+                    Task { await identity.signInWithApple(idToken: token, nonce: nonce, givenName: credential.fullName?.givenName, familyName: credential.fullName?.familyName) }
                 case .failure(let error):
                     appleNonce = nil
                     identity.reportSocialSignInFailure(error)

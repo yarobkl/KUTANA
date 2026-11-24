@@ -79,6 +79,118 @@ actor KutanaAPI {
         self.decoder = decoder
     }
 
+    func basicProfile(accessToken: String) async throws -> LukaBasicProfile? {
+        let rows: [LukaBasicProfile] = try await get("profiles", query: [
+            URLQueryItem(name: "select", value: "display_name"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return rows.first
+    }
+
+    func privateProfile(accessToken: String) async throws -> LukaPrivateProfile? {
+        let rows: [LukaPrivateProfile] = try await get("luka_private_profiles", query: [
+            URLQueryItem(name: "select", value: "user_id,first_name,last_name,birth_date,phone_e164,phone_region,country_code,city,commune,share_location_with_recruiters"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: accessToken)
+        return rows.first
+    }
+
+    func savePrivateProfile(_ profile: LukaPrivateProfile, accessToken: String) async throws {
+        try await write("luka_private_profiles", method: "POST",
+                        query: [URLQueryItem(name: "on_conflict", value: "user_id")],
+                        body: [
+                            "user_id": profile.user_id.uuidString.lowercased(),
+                            "first_name": profile.first_name, "last_name": profile.last_name,
+                            "birth_date": profile.birth_date, "phone_e164": profile.phone_e164,
+                            "phone_region": profile.phone_region, "country_code": profile.country_code,
+                            "city": profile.city, "commune": profile.commune,
+                            "share_location_with_recruiters": profile.share_location_with_recruiters
+                        ], accessToken: accessToken, prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
+    struct SharedApplicationLocation: Decodable {
+        let country_code: String
+        let city: String
+        let commune: String
+    }
+
+    func sharedApplicationLocation(applicationID: UUID, accessToken: String) async throws -> SharedApplicationLocation? {
+        guard !accessToken.isEmpty else { throw BackendError.notAuthenticated }
+        let url = configuration.endpoint.appending(path: "rest/v1/rpc/luka_application_location")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["p_application": applicationID.uuidString.lowercased()])
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else { throw BackendError.server(http.statusCode) }
+        return try decoder.decode([SharedApplicationLocation].self, from: data).first
+    }
+
+    func publicComments(kind: String, contentID: UUID) async throws -> [LukaComment] {
+        try await get("luka_comments", query: [
+            URLQueryItem(name: "select", value: "id,kind,content_id,parent_id,author_id,author_name,body,created_at,deleted_at"),
+            URLQueryItem(name: "kind", value: "eq.\(kind)"),
+            URLQueryItem(name: "content_id", value: "eq.\(contentID.uuidString.lowercased())"),
+            URLQueryItem(name: "order", value: "created_at.asc"),
+            URLQueryItem(name: "limit", value: "100")
+        ])
+    }
+
+    func commentsEnabled(kind: String, contentID: UUID) async throws -> Bool {
+        let rows: [LukaCommentSetting] = try await get("luka_comment_settings", query: [
+            URLQueryItem(name: "select", value: "enabled"),
+            URLQueryItem(name: "kind", value: "eq.\(kind)"),
+            URLQueryItem(name: "content_id", value: "eq.\(contentID.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first?.enabled ?? true
+    }
+
+    func addComment(kind: String, contentID: UUID, parentID: UUID?, body: String, accessToken: String) async throws {
+        let parent: Any = parentID.map { $0.uuidString.lowercased() as Any } ?? NSNull()
+        try await write("rpc/luka_add_comment", method: "POST", body: [
+            "p_kind": kind, "p_content": contentID.uuidString.lowercased(), "p_parent": parent, "p_body": body
+        ], accessToken: accessToken)
+    }
+
+    func deleteComment(id: UUID, accessToken: String) async throws {
+        try await write("rpc/luka_delete_own_comment", method: "POST",
+                        body: ["p_comment": id.uuidString.lowercased()], accessToken: accessToken)
+    }
+
+    func reportComment(id: UUID, reason: String, accessToken: String) async throws {
+        try await write("rpc/luka_report_comment", method: "POST",
+                        body: ["p_comment": id.uuidString.lowercased(), "p_reason": reason], accessToken: accessToken)
+    }
+
+    func setCommentsEnabled(kind: String, contentID: UUID, enabled: Bool, accessToken: String) async throws {
+        try await write("rpc/luka_set_comments_enabled", method: "POST", body: [
+            "p_kind": kind, "p_content": contentID.uuidString.lowercased(), "p_enabled": enabled
+        ], accessToken: accessToken)
+    }
+
+    func publicJob(id: UUID) async throws -> JobRecord? {
+        let rows: [JobRecord] = try await get("jobs", query: [
+            URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())"),
+            URLQueryItem(name: "status", value: "eq.published"), URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first
+    }
+
+    func publicListing(id: UUID) async throws -> ListingRecord? {
+        let rows: [ListingRecord] = try await get("listings", query: [
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())"),
+            URLQueryItem(name: "status", value: "in.(published,sold)"), URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first
+    }
+
     func publishedJobs(limit: Int = 30) async throws -> [JobRecord] {
         try await get("jobs", query: [
             URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),
@@ -101,6 +213,22 @@ actor KutanaAPI {
             "p_details": details,
             "p_app_version": appVersion
         ], accessToken: accessToken)
+    }
+
+    func listingFavorites(accessToken: String) async throws -> [ListingFavorite] {
+        try await get("luka_listing_favorites", query: [URLQueryItem(name: "select", value: "listing_id")], accessToken: accessToken)
+    }
+
+    func addListingFavorite(listingID: UUID, userID: UUID, accessToken: String) async throws {
+        try await write("luka_listing_favorites", method: "POST",
+                        query: [URLQueryItem(name: "on_conflict", value: "user_id,listing_id")],
+                        body: ["listing_id": listingID.uuidString.lowercased(), "user_id": userID.uuidString.lowercased()],
+                        accessToken: accessToken, prefer: "resolution=ignore-duplicates,return=minimal")
+    }
+
+    func removeListingFavorite(listingID: UUID, accessToken: String) async throws {
+        try await write("luka_listing_favorites", method: "DELETE",
+                        query: [URLQueryItem(name: "listing_id", value: "eq.\(listingID.uuidString.lowercased())")], accessToken: accessToken)
     }
 
     func favorites(accessToken: String) async throws -> [JobFavorite] {
@@ -166,6 +294,22 @@ actor KutanaAPI {
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw BackendError.invalidResponse
         }
+    }
+
+    func publicListings(ids: [UUID]) async throws -> [ListingRecord] {
+        guard !ids.isEmpty else { return [] }
+        var result: [ListingRecord] = []
+        for start in stride(from: 0, to: ids.count, by: 50) {
+            let batch = ids[start..<min(start + 50, ids.count)].map { $0.uuidString.lowercased() }.joined(separator: ",")
+            let rows: [ListingRecord] = try await get("listings", query: [
+                URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),
+                URLQueryItem(name: "id", value: "in.(\(batch))"),
+                URLQueryItem(name: "status", value: "in.(published,sold)"),
+                URLQueryItem(name: "limit", value: "50")
+            ])
+            result.append(contentsOf: rows)
+        }
+        return result.sorted { $0.created_at > $1.created_at }
     }
 
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {

@@ -10,7 +10,12 @@ struct MarketView: View {
     @State private var priceLimit: Int64?
     @State private var query = ""
     @State private var favoritesOnly = false
-    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
+    @State private var favoriteIDs: Set<String> = []
+    @State private var favoriteListings: [ListingRecord] = []
+    @State private var favoritesLoadRevision = 0
+    @AppStorage("kutana.listingFavorites") private var legacyFavorites = ""
+    @State private var confirmImport = false
+    @State private var importingFavorites = false
     @State private var loading = false
     @State private var hasLoaded = false
     @State private var errorMessage: String?
@@ -18,7 +23,7 @@ struct MarketView: View {
     private let categories = ["Toutes", "Téléphones", "Informatique", "Électroménager", "Meubles", "Véhicules", "Mode", "Maison", "Matériel professionnel", "Autres"]
 
     private var visible: [ListingRecord] {
-        listings.filter { item in
+        (favoritesOnly ? favoriteListings : listings).filter { item in
             let matchesCategory = category == "Toutes" || item.category == category
             let matchesQuery = query.isEmpty || [item.title, item.category, item.city, item.description]
                 .contains { $0.localizedCaseInsensitiveContains(query) }
@@ -29,9 +34,7 @@ struct MarketView: View {
         }
     }
 
-    private var favoriteIDs: Set<String> { Set(savedFavorites.split(separator: ",").map(String.init)) }
-
-    private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
+    private var cities: [String] { Array(Set((favoritesOnly ? favoriteListings : listings).map(\.city))).sorted() }
 
     var body: some View {
         NavigationStack {
@@ -44,14 +47,36 @@ struct MarketView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { NotificationsView() } label: {
-                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    if identity.authenticated {
+                        NavigationLink { NotificationsView() } label: {
+                            Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                        }
+                        .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                    } else {
+                        Button {
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        } label: {
+                            Image(systemName: "bell")
+                        }
+                        .accessibilityLabel("Se connecter pour consulter les notifications")
                     }
-                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
                 }
             }
-            .refreshable { await load() }
-            .task { await load() }
+            .refreshable { await load(); await loadFavorites() }
+            .confirmationDialog("Importer les anciens favoris ?", isPresented: $confirmImport) {
+                Button("Importer dans mon compte") { Task { await importLegacyFavorites() } }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("Ces favoris ont été enregistrés sur cet appareil et peuvent appartenir à une autre personne. Importez-les seulement si ce sont les vôtres.")
+            }
+            .onChange(of: identity.authenticated) { _, authenticated in
+                if !authenticated { favoritesOnly = false; favoriteIDs = []; favoriteListings = []; favoritesLoadRevision += 1 }
+                else { Task { await loadFavorites() } }
+            }
+            .task { await load(); await loadFavorites() }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-listing-favorites-changed"))) { _ in
+                Task { await loadFavorites() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-publications-changed"))) { _ in
                 Task { await load() }
             }
@@ -61,6 +86,7 @@ struct MarketView: View {
     private var discoveryControls: some View {
         Section {
             KutanaInlineSearch(text: $query, prompt: "Article, catégorie ou ville")
+                .padding(.horizontal, 16)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Menu {
@@ -86,21 +112,31 @@ struct MarketView: View {
                         KutanaFilterChip(title: priceLimit.map { "≤ \(KutanaFormat.xaf($0))" } ?? "Prix",
                                          symbol: "chevron.down", active: priceLimit != nil)
                     }
-                    Button { favoritesOnly.toggle() } label: {
+                    Button {
+                        if identity.authenticated { favoritesOnly.toggle() }
+                        else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                    } label: {
                         KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "heart.fill" : "heart", active: favoritesOnly)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.vertical, 2)
+                .padding(.horizontal, 16)
             }
+            .listRowInsets(EdgeInsets())
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
     }
 
     private var resultsSection: some View {
         Section("Annonces récentes") {
+            if favoritesOnly && identity.authenticated && !legacyFavorites.isEmpty {
+                Button(importingFavorites ? "Importation…" : "Importer les anciens favoris de cet appareil") {
+                    confirmImport = true
+                }.disabled(importingFavorites)
+            }
             if loading && !hasLoaded {
                 ForEach(0..<4, id: \.self) { _ in
                     KutanaLoadingRow(withThumbnail: true)
@@ -123,7 +159,7 @@ struct MarketView: View {
                     ContentUnavailableView("Aucune annonce", systemImage: "tag",
                         description: Text(category != "Toutes" || cityFilter != nil || priceLimit != nil || !query.isEmpty ?
                             "Essayez d'autres critères de recherche." :
-                            "Les annonces publiées apparaîtront ici."))
+                            (favoritesOnly ? "Vous n’avez pas encore de favoris." : "Les annonces publiées apparaîtront ici.")))
                 }
             }
         }
@@ -159,6 +195,52 @@ struct MarketView: View {
         .padding(.vertical, 5)
     }
 
+    @MainActor private func importLegacyFavorites() async {
+        guard !importingFavorites, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { return }
+        let original = legacyFavorites
+        let values = Set(original.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+        guard !values.isEmpty else { errorMessage = "Aucun ancien favori valide à importer."; return }
+        importingFavorites = true
+        defer { importingFavorites = false }
+        let api = KutanaAPI(configuration: configuration)
+        var failures = 0
+        for listingID in values {
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject else { return }
+            do { try await api.addListingFavorite(listingID: listingID, userID: subject, accessToken: token) }
+            catch { failures += 1 }
+        }
+        guard identity.authenticated, let current = identity.active?.token.access_token,
+              AccessTokenMetadata.subject(current) == subject else { return }
+        if failures == 0 && legacyFavorites == original {
+            legacyFavorites = ""
+        } else {
+            errorMessage = "Certains favoris n’ont pas pu être importés. Les données sur cet appareil sont conservées."
+        }
+        await loadFavorites()
+    }
+
+    @MainActor private func loadFavorites() async {
+        guard identity.authenticated, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { favoriteIDs = []; favoriteListings = []; return }
+        favoritesLoadRevision += 1
+        let revision = favoritesLoadRevision
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            let rows = try await api.listingFavorites(accessToken: token)
+            let savedListings = try await api.publicListings(ids: rows.map(\.listing_id))
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject, revision == favoritesLoadRevision else { return }
+            favoriteIDs = Set(rows.map { $0.listing_id.uuidString.lowercased() })
+            favoriteListings = savedListings
+        } catch {
+            errorMessage = "Impossible de charger vos favoris. Réessayez."
+        }
+    }
+
     @MainActor private func load() async {
         guard let configuration = identity.configuration else { return }
         loading = true
@@ -172,10 +254,12 @@ struct MarketView: View {
     }
 }
 
-private struct ListingDetailView: View {
+struct ListingDetailView: View {
     let item: ListingRecord
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var contacting = false
+    @State private var pendingAction: PendingAction?
+    private enum PendingAction { case contact, favorite }
     @State private var showChat = false
     @State private var conversationID: UUID?
     @State private var errorMessage: String?
@@ -183,16 +267,15 @@ private struct ListingDetailView: View {
     @State private var photos: [ListingImageRecord] = []
     @State private var photoIndex = 0
     @State private var showingAlbum = false
-    @AppStorage("kutana.listingFavorites") private var savedFavorites = ""
+    @State private var isFavorite = false
+    @State private var favoriteBusy = false
+    @State private var favoriteLoaded = false
+    @State private var favoriteRevision = 0
 
     private var photoURLs: [URL] {
         let paths = photos.isEmpty ? (item.listing_images ?? []).map(\.storage_path) :
             photos.sorted { $0.sort_order < $1.sort_order }.map(\.storage_path)
         return paths.compactMap { identity.configuration?.publicListingImageURL(path: $0) }
-    }
-
-    private var isFavorite: Bool {
-        savedFavorites.split(separator: ",").contains(Substring(item.id.uuidString.lowercased()))
     }
 
     var body: some View {
@@ -231,9 +314,14 @@ private struct ListingDetailView: View {
                     Text(errorMessage).font(.footnote).foregroundStyle(.red)
                 }
                 KutanaPrimaryButton(title: contacting ? "Ouverture…" : "Contacter le vendeur") {
-                    Task { await contactSeller() }
+                    if identity.authenticated {
+                        Task { await contactSeller() }
+                    } else {
+                        pendingAction = .contact
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
                 }
-                .disabled(contacting || !identity.authenticated || isMine || item.status == "sold")
+                .disabled(contacting || isMine || item.status == "sold")
                 if item.status == "sold" {
                     Text("Cet article a été vendu.").font(.footnote).foregroundStyle(.secondary)
                 }
@@ -244,6 +332,7 @@ private struct ListingDetailView: View {
                 if isMine {
                     Text("C'est votre annonce.").font(.footnote).foregroundStyle(.secondary)
                 }
+                LukaCommentsView(kind: "listing", contentID: item.id, isOwner: isMine)
             }.padding(20)
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -280,11 +369,43 @@ private struct ListingDetailView: View {
                     .padding(.bottom, 30)
             }
         }
-        .task { await loadPhotos() }
+        .task { await loadPhotos(); await loadFavorite() }
+        .onChange(of: identity.authenticated) { _, authenticated in
+            if !authenticated { isFavorite = false; favoriteLoaded = false; favoriteRevision += 1 }
+            else { Task { await loadFavorite() } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
+            pendingAction = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-profile-ready"))) { _ in
+            guard identity.authenticated, let action = pendingAction else { return }
+            pendingAction = nil
+            switch action {
+            case .contact:
+                guard !isMine, item.status != "sold" else { return }
+                Task { await contactSeller() }
+            case .favorite:
+                Task { await setFavorite(true) }
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: URL(string: "https://luka-partage.vercel.app/annonce/\(item.id.uuidString.lowercased())")!) {
+                    Label("Partager l'annonce", systemImage: "square.and.arrow.up")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris",
-                       systemImage: isFavorite ? "heart.fill" : "heart") { toggleFavorite() }
+                       systemImage: isFavorite ? "heart.fill" : "heart") {
+                    if identity.authenticated {
+                        Task { if favoriteLoaded { await setFavorite(!isFavorite) } else { await loadFavorite() } }
+                    }
+                    else {
+                        pendingAction = .favorite
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
+                }
+                    .disabled(favoriteBusy)
                     .accessibilityLabel(isFavorite ? "Retirer des favoris" : "Ajouter aux favoris")
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -298,12 +419,45 @@ private struct ListingDetailView: View {
         }
     }
 
-    private func toggleFavorite() {
-        var ids = Set(savedFavorites.split(separator: ",").map(String.init))
-        let id = item.id.uuidString.lowercased()
-        if !ids.insert(id).inserted { ids.remove(id) }
-        savedFavorites = ids.sorted().joined(separator: ",")
+    @MainActor private func loadFavorite() async {
+        guard identity.authenticated, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { return }
+        let revision = favoriteRevision
+        do {
+            let rows = try await KutanaAPI(configuration: configuration).listingFavorites(accessToken: token)
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject, revision == favoriteRevision else { return }
+            isFavorite = rows.contains { $0.listing_id == item.id }
+            favoriteLoaded = true
+        } catch { errorMessage = "Impossible de charger ce favori. Réessayez." }
     }
+
+    @MainActor private func setFavorite(_ desired: Bool) async {
+        guard !favoriteBusy, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour gérer vos favoris."
+            return
+        }
+        favoriteBusy = true
+        favoriteRevision += 1
+        defer { favoriteBusy = false }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            if desired {
+                try await api.addListingFavorite(listingID: item.id, userID: subject, accessToken: token)
+            } else {
+                try await api.removeListingFavorite(listingID: item.id, accessToken: token)
+            }
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject else { return }
+            isFavorite = desired
+            favoriteLoaded = true
+            NotificationCenter.default.post(name: Notification.Name("luka-listing-favorites-changed"), object: nil)
+        } catch { errorMessage = "Impossible d’enregistrer ce favori. Réessayez." }
+    }
+
 
 
     @MainActor private func loadPhotos() async {
@@ -322,9 +476,17 @@ private struct ListingDetailView: View {
     }
 
     @MainActor private func contactSeller() async {
-        guard let configuration = identity.configuration,
-              let token = await identity.freshAccessToken() else {
-            errorMessage = "Connectez-vous pour contacter le vendeur."
+        guard let configuration = identity.configuration else {
+            errorMessage = "Le service est momentanément indisponible."
+            return
+        }
+        guard let token = await identity.freshAccessToken() else {
+            if !identity.authenticated {
+                pendingAction = .contact
+                NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+            } else {
+                errorMessage = "Connexion indisponible. Réessayez."
+            }
             return
         }
         contacting = true

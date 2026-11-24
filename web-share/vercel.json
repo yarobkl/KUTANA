@@ -1,0 +1,9 @@
+{
+  "headers": [
+    { "source": "/.well-known/apple-app-site-association", "headers": [{ "key": "Content-Type", "value": "application/json" }] }
+  ],
+  "rewrites": [
+    { "source": "/emploi/:id", "destination": "/api/share?kind=job&id=:id" },
+    { "source": "/annonce/:id", "destination": "/api/share?kind=listing&id=:id" }
+  ]
+}

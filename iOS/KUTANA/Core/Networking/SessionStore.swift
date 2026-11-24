@@ -9,6 +9,8 @@ import AuthenticationServices
     @Published private(set) var busy = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var notice: String?
+    @Published private(set) var suggestedFirstName = ""
+    @Published private(set) var suggestedLastName = ""
 
     let configuration: BackendConfiguration?
     private let tokenStore = SecureTokenStore()
@@ -36,27 +38,37 @@ import AuthenticationServices
             let new = try await auth.refresh(persisted.token.refresh_token)
             try save(new)
         } catch {
-            signOut()
+            if refreshFailureInvalidatesSession(error) {
+                signOut()
+            } else {
+                // Keep the Keychain session so a temporary outage can recover.
+                active = persisted
+                authenticated = true
+                errorMessage = "Connexion temporairement indisponible. Réessayez."
+            }
         }
     }
 
     func signIn(email: String, password: String) async {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do { try save(try await auth.signIn(email: email, password: password)) }
         catch { errorMessage = error.localizedDescription }
     }
 
-    func signInWithApple(idToken: String, nonce: String) async {
+    func signInWithApple(idToken: String, nonce: String, givenName: String? = nil, familyName: String? = nil) async {
         guard let auth else {
-            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            errorMessage = "Le serveur LUKA n'est pas configuré."
             return
         }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
-            try save(try await auth.signInWithApple(idToken: idToken, nonce: nonce))
+            let session = try await auth.signInWithApple(idToken: idToken, nonce: nonce)
+            suggestedFirstName = givenName ?? ""
+            suggestedLastName = familyName ?? ""
+            try save(session)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -64,7 +76,7 @@ import AuthenticationServices
 
     func signInWithGoogle() async {
         guard let auth, let configuration else {
-            errorMessage = "Le serveur KUTANA n'est pas configuré."
+            errorMessage = "Le serveur LUKA n'est pas configuré."
             return
         }
         busy = true; errorMessage = nil; notice = nil
@@ -89,7 +101,7 @@ import AuthenticationServices
     }
 
     func signUp(email: String, password: String, fullName: String) async -> Bool {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return false }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return false }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
@@ -100,7 +112,7 @@ import AuthenticationServices
     }
 
     func resetPassword(email: String) async -> Bool {
-        guard let auth else { errorMessage = "Le serveur KUTANA n'est pas encore configuré."; return false }
+        guard let auth else { errorMessage = "Le serveur LUKA n'est pas encore configuré."; return false }
         busy = true; errorMessage = nil; notice = nil
         defer { busy = false }
         do {
@@ -119,7 +131,11 @@ import AuthenticationServices
             try save(newToken)
             return newToken.access_token
         } catch {
-            signOut()
+            if refreshFailureInvalidatesSession(error) {
+                signOut()
+            } else {
+                errorMessage = "Connexion temporairement indisponible. Réessayez."
+            }
             return nil
         }
     }
@@ -127,6 +143,8 @@ import AuthenticationServices
     func signOut() {
         tokenStore.remove(account: storageAccount)
         active = nil
+        suggestedFirstName = ""
+        suggestedLastName = ""
         authenticated = false
         notice = nil
         errorMessage = nil

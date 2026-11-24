@@ -177,6 +177,8 @@ struct ReceivedApplicationsView: View {
     @State private var pendingStatus: ApplicationState?
     @State private var showConfirmation = false
     @State private var cvPreview: URL?
+    @State private var locationMessage: String?
+    @State private var showLocation = false
 
     private struct ChatTarget: Identifiable {
         let id: UUID
@@ -228,6 +230,13 @@ struct ReceivedApplicationsView: View {
                             }
                             .disabled(busy)
                         }
+                        Button {
+                            Task { await openLocation(for: item.id) }
+                        } label: {
+                            Label("Localisation partagée", systemImage: "mappin.and.ellipse")
+                                .font(.subheadline)
+                        }
+                        .disabled(busy)
                     }
                     .padding(.vertical, 8)
                 }
@@ -259,6 +268,11 @@ struct ReceivedApplicationsView: View {
                         }
                 }
             }
+            .alert("Localisation du candidat", isPresented: $showLocation) {
+                Button("Fermer", role: .cancel) {}
+            } message: {
+                Text(locationMessage ?? "")
+            }
             .quickLookPreview($cvPreview)
             .onChange(of: cvPreview) { oldURL, newURL in
                 if newURL == nil, let oldURL {
@@ -268,6 +282,29 @@ struct ReceivedApplicationsView: View {
         }
     }
 
+
+    @MainActor private func openLocation(for applicationID: UUID) async {
+        guard let configuration = identity.configuration,
+              let token = await identity.freshAccessToken() else {
+            errorMessage = "Reconnectez-vous pour consulter la localisation."
+            return
+        }
+        busy = true
+        defer { busy = false }
+        do {
+            let location = try await KutanaAPI(configuration: configuration)
+                .sharedApplicationLocation(applicationID: applicationID, accessToken: token)
+            if let location {
+                let country = Locale.current.localizedString(forRegionCode: location.country_code) ?? location.country_code
+                locationMessage = "\(location.commune), \(location.city), \(country)"
+            } else {
+                locationMessage = "Le candidat n’a pas partagé sa localisation."
+            }
+            showLocation = true
+        } catch {
+            errorMessage = "Impossible de consulter la localisation."
+        }
+    }
 
     @MainActor private func openCV(for applicationID: UUID) async {
         guard let configuration = identity.configuration,

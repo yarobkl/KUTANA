@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("kutana.notificationPromptSeen") private var notificationPromptSeen = false
     @State private var selection = 0
+    @State private var shareDestination: LukaShareDestination?
     @State private var unreadNotifications = 0
     @State private var showingNotificationPrompt = false
     @State private var knownNotificationIDs: Set<UUID> = []
@@ -19,13 +20,23 @@ struct RootView: View {
                 .tabItem { Label("Emploi", systemImage: "briefcase") }.tag(0)
             MarketView(unreadCount: unreadNotifications).modifier(KutanaTabEntrance())
                 .tabItem { Label("Annonces", systemImage: "tag") }.tag(1)
-            PublishView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { PublishView() } else { KutanaGuestGate(title: "Publier", description: "Connectez-vous pour publier.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Publier", systemImage: "plus.square") }.tag(2)
-            MessagesView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { MessagesView() } else { KutanaGuestGate(title: "Messages", description: "Connectez-vous pour accéder à vos conversations.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right") }.tag(3)
-            ProfileView().modifier(KutanaTabEntrance())
+            Group { if identity.authenticated { ProfileView() } else { KutanaGuestGate(title: "Profil", description: "Connectez-vous pour accéder à votre compte.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Profil", systemImage: "person.crop.circle") }
                 .badge(unreadNotifications).tag(4)
+        }
+        .onOpenURL { url in
+            guard url.scheme == "https", url.host == "luka-partage.vercel.app" else { return }
+            let parts = url.pathComponents.filter { $0 != "/" }
+            guard parts.count == 2, let id = UUID(uuidString: parts[1]),
+                  let kind = LukaShareDestination.Kind(rawValue: parts[0]) else { return }
+            shareDestination = LukaShareDestination(kind: kind, id: id)
+        }
+        .sheet(item: $shareDestination) { destination in
+            NavigationStack { LukaSharedPublicationView(destination: destination) }
         }
         .tint(KutanaTheme.blue)
         .sensoryFeedback(.selection, trigger: selection)
@@ -38,7 +49,7 @@ struct RootView: View {
         .onChange(of: selection) { _, _ in Task { await refreshUnread() } }
         .onAppear { offerNotificationPrompt() }
         .onChange(of: allowNotificationPrompt) { _, _ in offerNotificationPrompt() }
-        .alert("Rester informé sur KUTANA ?", isPresented: $showingNotificationPrompt) {
+        .alert("Rester informé sur LUKA ?", isPresented: $showingNotificationPrompt) {
             Button("Activer") {
                 notificationPromptSeen = true
                 Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) }
@@ -79,6 +90,54 @@ struct RootView: View {
         content.sound = .default
         let request = UNNotificationRequest(identifier: item.id.uuidString, content: content, trigger: nil)
         try? await center.add(request)
+    }
+}
+
+private struct LukaShareDestination: Identifiable {
+    enum Kind: String { case job = "emploi", listing = "annonce" }
+    let kind: Kind
+    let id: UUID
+}
+
+private struct LukaSharedPublicationView: View {
+    let destination: LukaShareDestination
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var job: JobRecord?
+    @State private var listing: ListingRecord?
+    @State private var loading = true
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if loading { ProgressView("Chargement…") }
+            else if let job { JobDetailView(job: job, preview: false) }
+            else if let listing { ListingDetailView(item: listing) }
+            else {
+                VStack {
+                    ContentUnavailableView(failed ? "Chargement impossible" : "Publication indisponible",
+                                           systemImage: failed ? "wifi.exclamationmark" : "doc.questionmark",
+                                           description: Text(failed ? "Vérifiez votre connexion et réessayez." : "Cette publication n’est plus accessible."))
+                    if failed { Button("Réessayer") { Task { await load() } } }
+                }
+            }
+        }
+        .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
+        .task { await load() }
+    }
+
+    @MainActor private func load() async {
+        loading = true
+        failed = false
+        guard let configuration = identity.configuration else { failed = true; loading = false; return }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            switch destination.kind {
+            case .job: job = try await api.publicJob(id: destination.id)
+            case .listing: listing = try await api.publicListing(id: destination.id)
+            }
+        } catch { failed = true }
+        loading = false
     }
 }
 
@@ -162,7 +221,7 @@ private struct JobDraftFormView: View {
                 }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 if !identity.isConfigured {
-                    Text("Le serveur KUTANA indépendant n'est pas encore configuré.")
+                    Text("Le serveur LUKA n'est pas encore configuré.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
@@ -263,7 +322,7 @@ private struct ListingDraftFormView: View {
                 }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 if !identity.isConfigured {
-                    Text("Le serveur KUTANA indépendant n'est pas encore configuré.")
+                    Text("Le serveur LUKA n'est pas encore configuré.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 KutanaPrimaryButton(title: saving ? "Enregistrement…" : "Enregistrer le brouillon") {
@@ -276,7 +335,7 @@ private struct ListingDraftFormView: View {
                     .disabled(publishing || !identity.authenticated)
                 }
             } footer: {
-                Text("L'annonce reste privée jusqu'à sa mise en ligne. Elle sera visible pendant 30 jours, puis conservée dans vos archives. Aucun paiement n'est réalisé dans KUTANA.")
+                Text("L'annonce reste privée jusqu'à sa mise en ligne. Elle sera visible pendant 30 jours, puis conservée dans vos archives. Aucun paiement n'est réalisé dans LUKA.")
             }
         }
         .navigationTitle("Nouvelle annonce")
@@ -376,11 +435,16 @@ struct MyPublicationsView: View {
     }
 
     private func listingRow(_ item: ListingRecord) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let isExpired = item.status == "published" && (item.expires_at.map { $0 <= Date() } ?? false)
+        return VStack(alignment: .leading, spacing: 8) {
             Text(item.title).font(.headline)
             Text("\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)")
                 .font(.subheadline).foregroundStyle(.secondary)
-            Text(statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            Text(isExpired ? "Expirée" : statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            if isExpired {
+                Text("Cette annonce n’est plus visible. Archivez-la pour pouvoir la remettre en ligne.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if (item.status == "published" || item.status == "sold"), let expiresAt = item.expires_at {
                 Text("En ligne jusqu'au \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption).foregroundStyle(.secondary)
@@ -415,6 +479,8 @@ struct MyPublicationsView: View {
                         Task { await changeListing(id: item.id, status: "published") }
                     }
                     .disabled(changingID != nil)
+                    Text("Trois remises en ligne maximum par compte sur 24 heures.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
@@ -814,6 +880,25 @@ private struct ListingPhotoReplacement: View {
         .onChange(of: selection) { _, item in
             if let item { onSelect(item) }
             selection = nil
+        }
+    }
+}
+
+private struct KutanaGuestGate: View {
+    let title: String
+    let description: String
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView {
+                Label(title, systemImage: "person.crop.circle")
+            } description: {
+                Text(description)
+            } actions: {
+                Button("Se connecter") {
+                    NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                }.buttonStyle(.borderedProminent)
+            }
+            .navigationTitle(title)
         }
     }
 }

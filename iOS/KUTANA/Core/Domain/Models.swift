@@ -93,6 +93,7 @@ struct KutanaNotification: Identifiable, Codable, Sendable {
     let read_at: Date?
 }
 
+struct ListingFavorite: Codable, Sendable { let listing_id: UUID }
 struct JobFavorite: Codable, Sendable { let job_id: UUID }
 struct JobAlert: Identifiable, Codable, Sendable {
     let id: UUID
@@ -138,4 +139,36 @@ enum KutanaFormat {
         formatter.locale = Locale(identifier: "fr_FR")
         return "\(formatter.string(from: NSNumber(value: amount)) ?? String(amount)) FCFA"
     }
+}
+
+struct LukaComment: Decodable, Identifiable, Sendable {
+    let id: UUID
+    let kind: String
+    let content_id: UUID
+    let parent_id: UUID?
+    let author_id: UUID
+    let author_name: String
+    let body: String
+    let created_at: Date
+    let deleted_at: Date?
+}
+struct LukaCommentSetting: Decodable, Sendable {
+    let enabled: Bool
+}
+
+struct LukaPrivateProfile: Codable, Sendable {
+    let user_id: UUID
+    let first_name: String
+    let last_name: String
+    let birth_date: String
+    let phone_e164: String
+    let phone_region: String
+    let country_code: String
+    let city: String
+    let commune: String
+    let share_location_with_recruiters: Bool
+}
+
+struct LukaBasicProfile: Decodable, Sendable {
+    let display_name: String
 }

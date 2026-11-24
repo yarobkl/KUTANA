@@ -16,16 +16,22 @@ settings:
     SUPPORTS_MACCATALYST: NO
     INFOPLIST_KEY_KUTANA_SUPABASE_URL: "https://xwhjzftrzikgqweowtus.supabase.co"
     INFOPLIST_KEY_KUTANA_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x-MshIA-X2hZ1fJJdjvtFw_dt-05xAI"
+packages:
+  PhoneNumberKit:
+    url: https://github.com/PhoneNumberKit/PhoneNumberKit
+    exactVersion: 5.0.15
 targets:
   KUTANA:
     type: application
     platform: iOS
     sources:
       - path: iOS/KUTANA
+    dependencies:
+      - package: PhoneNumberKit
     info:
       path: iOS/KUTANA/Info.plist
       properties:
-        CFBundleDisplayName: KUTANA
+        CFBundleDisplayName: LUKA
         CFBundleDevelopmentRegion: fr
         CFBundleLocalizations:
           - fr
@@ -49,19 +55,36 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        com.apple.developer.associated-domains:
+          - applinks:luka-partage.vercel.app
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana
-        INFOPLIST_KEY_CFBundleDisplayName: KUTANA
+        INFOPLIST_KEY_CFBundleDisplayName: LUKA
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         DEVELOPMENT_TEAM: UK4UQCQ57G
+  KUTANAUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: KUTANA
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: KUTANA
 schemes:
   KUTANA:
     build:
       targets:
         KUTANA: all
+    test:
+      targets:
+        - KUTANAUITests
     run:
       config: Debug
     archive:

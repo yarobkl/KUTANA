@@ -20,8 +20,8 @@ struct JobsView: View {
         let author = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")!
         let date = Date()
         return [
-            JobRecord(id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!, author_id: author, title: "Assistant commercial (H/F)", company: "Entreprise de distribution", city: "Brazzaville", contract_type: "CDI", description: "Exemple de présentation KUTANA. Cette offre n'est pas publiée et aucune candidature ne peut y être envoyée.", status: "demo", created_at: date),
-            JobRecord(id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!, author_id: author, title: "Chargé de marketing digital (H/F)", company: "Agence de communication", city: "Pointe-Noire", contract_type: "CDD", description: "Exemple de présentation KUTANA. Cette offre n'est pas publiée.", status: "demo", created_at: date)
+            JobRecord(id: UUID(uuidString: "11111111-1111-4111-8111-111111111111")!, author_id: author, title: "Assistant commercial (H/F)", company: "Entreprise de distribution", city: "Brazzaville", contract_type: "CDI", description: "Exemple de présentation LUKA. Cette offre n'est pas publiée et aucune candidature ne peut y être envoyée.", status: "demo", created_at: date),
+            JobRecord(id: UUID(uuidString: "22222222-2222-4222-8222-222222222222")!, author_id: author, title: "Chargé de marketing digital (H/F)", company: "Agence de communication", city: "Pointe-Noire", contract_type: "CDD", description: "Exemple de présentation LUKA. Cette offre n'est pas publiée.", status: "demo", created_at: date)
         ]
     }
 
@@ -58,10 +58,12 @@ struct JobsView: View {
                                     Button(contract) { contractFilter = contract }
                                 }
                             } label: { KutanaFilterChip(title: contractFilter ?? "Contrat", symbol: "chevron.down", active: contractFilter != nil) }
-                            Button { favoritesOnly.toggle() } label: {
+                            Button {
+                                if identity.authenticated { favoritesOnly.toggle() }
+                                else { NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil) }
+                            } label: {
                                 KutanaFilterChip(title: "Favoris", symbol: favoritesOnly ? "bookmark.fill" : "bookmark", active: favoritesOnly)
                             }
-                            .disabled(!identity.authenticated)
                         }
                         .padding(.vertical, 2)
                     }
@@ -118,6 +120,7 @@ struct JobsView: View {
                             .padding(.vertical, 9)
                             .modifier(KutanaTransitionSource(id: job.id, namespace: navigationNamespace))
                         }
+                        .accessibilityIdentifier("luka-job-\(job.id.uuidString.lowercased())")
                     }
                     if visible.isEmpty && !loading && hasLoaded {
                         ContentUnavailableView("Aucune offre", systemImage: "briefcase",
@@ -130,10 +133,19 @@ struct JobsView: View {
             .refreshable { await load() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink { NotificationsView() } label: {
-                        Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                    if identity.authenticated {
+                        NavigationLink { NotificationsView() } label: {
+                            Image(systemName: unreadCount > 0 ? "bell.badge.fill" : "bell")
+                        }
+                        .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
+                    } else {
+                        Button {
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        } label: {
+                            Image(systemName: "bell")
+                        }
+                        .accessibilityLabel("Se connecter pour consulter les notifications")
                     }
-                    .accessibilityLabel(unreadCount > 0 ? "Notifications, \(unreadCount) non lues" : "Notifications")
                 }
             }
             .navigationTitle("Emploi")
@@ -175,6 +187,8 @@ struct JobDetailView: View {
     @State private var errorMessage: String?
     @State private var favorite = false
     @State private var favoriteBusy = false
+    @State private var pendingAction: PendingAction?
+    private enum PendingAction { case application, favorite }
 
     var body: some View {
         ScrollView {
@@ -186,9 +200,14 @@ struct JobDetailView: View {
                 Divider()
                 Text("Description du poste").font(.title2.bold())
                 Text(job.description)
-                if identity.authenticated && !isMine && !preview {
+                if !isMine && !preview {
                     Button {
-                        Task { await toggleFavorite() }
+                        if identity.authenticated {
+                            Task { await toggleFavorite() }
+                        } else {
+                            pendingAction = .favorite
+                            NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                        }
                     } label: {
                         Label(favorite ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: favorite ? "bookmark.fill" : "bookmark")
                     }.disabled(favoriteBusy)
@@ -198,9 +217,14 @@ struct JobDetailView: View {
                 if sent { Label("Candidature envoyée", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
                 KutanaPrimaryButton(title: sending ? "Envoi en cours…" : "Postuler à cette offre") {
-                    Task { await apply() }
+                    if identity.authenticated {
+                        Task { await apply() }
+                    } else {
+                        pendingAction = .application
+                        NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+                    }
                 }
-                .disabled(preview || !identity.authenticated || sending || sent || isMine)
+                .disabled(preview || sending || sent || isMine)
                 if isMine {
                     Text("C'est votre offre : vous ne pouvez pas y postuler. Un autre compte candidat peut le faire.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -213,10 +237,17 @@ struct JobDetailView: View {
                     Text(preview ? "Offre fictive : candidature désactivée." : "Connectez-vous pour postuler.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                if !preview { LukaCommentsView(kind: "job", contentID: job.id, isOwner: isMine) }
             }.padding(20)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: URL(string: "https://luka-partage.vercel.app/emploi/\(job.id.uuidString.lowercased())")!) {
+                    Label("Partager l'offre", systemImage: "square.and.arrow.up")
+                }
+                .disabled(preview)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Signaler", systemImage: "flag") { showReport = true }
                     .disabled(preview || !identity.authenticated || isMine)
@@ -227,6 +258,23 @@ struct JobDetailView: View {
                 .environmentObject(identity)
         }
         .task { await loadFavorite() }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-login-cancelled"))) { _ in
+            pendingAction = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("luka-profile-ready"))) { _ in
+            guard identity.authenticated, let action = pendingAction else { return }
+            pendingAction = nil
+            guard !preview, !isMine else { return }
+            Task {
+                switch action {
+                case .application:
+                    await apply()
+                case .favorite:
+                    await loadFavorite()
+                    if !favorite { await toggleFavorite() }
+                }
+            }
+        }
     }
 
     @MainActor private func loadFavorite() async {
@@ -238,22 +286,31 @@ struct JobDetailView: View {
 
     @MainActor private func toggleFavorite() async {
         guard let config = identity.configuration, let token = await identity.freshAccessToken(),
-              let userID = AccessTokenMetadata.subject(token) else { return }
+              let userID = AccessTokenMetadata.subject(token) else {
+            errorMessage = "Reconnectez-vous pour modifier vos favoris."
+            return
+        }
         favoriteBusy = true
         defer { favoriteBusy = false }
+        let api = KutanaAPI(configuration: config)
+        let adding = !favorite
         do {
-            let api = KutanaAPI(configuration: config)
-            if favorite { try await api.removeFavorite(jobID: job.id, accessToken: token) }
-            else {
-                try await api.addFavorite(jobID: job.id, userID: userID, accessToken: token)
-                let terms = job.title.split(separator: " ").prefix(2).joined(separator: " ")
-                if terms.count >= 2 {
-                    try await api.addAlert(keyword: terms, city: job.city, userID: userID, accessToken: token)
-                }
-            }
-            favorite.toggle(); errorMessage = nil
+            if adding { try await api.addFavorite(jobID: job.id, userID: userID, accessToken: token) }
+            else { try await api.removeFavorite(jobID: job.id, accessToken: token) }
+            favorite = adding
+            errorMessage = nil
             NotificationCenter.default.post(name: Notification.Name("kutana-favorites-changed"), object: nil)
-        } catch { errorMessage = "Impossible de modifier les favoris." }
+        } catch {
+            errorMessage = "Impossible de modifier les favoris."
+            return
+        }
+        if adding {
+            let terms = job.title.split(separator: " ").prefix(2).joined(separator: " ")
+            if terms.count >= 2 {
+                do { try await api.addAlert(keyword: terms, city: job.city, userID: userID, accessToken: token) }
+                catch { errorMessage = "Favori enregistré, mais l'alerte n'a pas pu être créée." }
+            }
+        }
     }
 
     private var isMine: Bool {
@@ -263,9 +320,17 @@ struct JobDetailView: View {
     }
 
     @MainActor private func apply() async {
-        guard let configuration = identity.configuration,
-              let token = await identity.freshAccessToken() else {
-            errorMessage = "Connectez-vous avant de postuler."
+        guard let configuration = identity.configuration else {
+            errorMessage = "Le service est momentanément indisponible."
+            return
+        }
+        guard let token = await identity.freshAccessToken() else {
+            if !identity.authenticated {
+                pendingAction = .application
+                NotificationCenter.default.post(name: Notification.Name("kutana-request-login"), object: nil)
+            } else {
+                errorMessage = "Connexion indisponible. Réessayez."
+            }
             return
         }
         sending = true; errorMessage = nil
