@@ -114,9 +114,12 @@ private struct LukaSharedPublicationView: View {
             else if let job { JobDetailView(job: job, preview: false) }
             else if let listing { ListingDetailView(item: listing) }
             else {
-                ContentUnavailableView(failed ? "Chargement impossible" : "Publication indisponible",
-                                       systemImage: failed ? "wifi.exclamationmark" : "doc.questionmark",
-                                       description: Text(failed ? "Vérifiez votre connexion et réessayez." : "Cette publication n’est plus accessible."))
+                VStack {
+                    ContentUnavailableView(failed ? "Chargement impossible" : "Publication indisponible",
+                                           systemImage: failed ? "wifi.exclamationmark" : "doc.questionmark",
+                                           description: Text(failed ? "Vérifiez votre connexion et réessayez." : "Cette publication n’est plus accessible."))
+                    if failed { Button("Réessayer") { Task { await load() } } }
+                }
             }
         }
         .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
@@ -124,6 +127,8 @@ private struct LukaSharedPublicationView: View {
     }
 
     @MainActor private func load() async {
+        loading = true
+        failed = false
         guard let configuration = identity.configuration else { failed = true; loading = false; return }
         do {
             let api = KutanaAPI(configuration: configuration)

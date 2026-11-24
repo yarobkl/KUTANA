@@ -6,7 +6,7 @@ Lecture publique limitée aux publications visibles, écriture et réponses par 
 
 Les vérifications SQL ont été réalisées dans des transactions annulées : lecture anonyme, ajout, réponse, refus de suppression par un autre auteur, signalement, fermeture et refus de nouvelle publication. Les comptes et données de test n'ont pas été conservés. Les parcours iOS complets et tests entre comptes réels restent à vérifier.
 
-Cette définition est enregistrée ici pour traçabilité. Elle doit encore être intégrée au répertoire des migrations via le processus CLI du projet.
+Cette définition est également versionnée dans `supabase/migrations/20261123214504_luka_public_comments.sql`.
 
 ```sql
 CREATE TABLE public.luka_comment_settings (

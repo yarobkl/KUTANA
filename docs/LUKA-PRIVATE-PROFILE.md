@@ -6,7 +6,7 @@ La table contenant nom, prénom, date de naissance, téléphone et localisation 
 
 Vérifications transactionnelles annulées avant et après application : accès du propriétaire, refus de lecture du recruteur sur la table privée, absence de localisation sans consentement, localisation consentie pour le recruteur associé, refus pour un tiers et absence de droit anonyme. Aucune donnée synthétique n'a été conservée.
 
-L'inscription e-mail recueille les champs requis et conserve temporairement les informations sensibles dans le trousseau de cet appareil ; après confirmation de l'adresse et connexion, elles sont proposées pour enregistrement dans le profil privé. La complétion après connexion, les connexions sociales et la restauration du brouillon restent à tester avec de vraies sessions. L'intégration au répertoire de migrations via le processus CLI reste à terminer.
+L'inscription e-mail recueille les champs requis et conserve temporairement les informations sensibles dans le trousseau de cet appareil ; après confirmation de l'adresse et connexion, elles sont proposées pour enregistrement dans le profil privé. La complétion après connexion, les connexions sociales et la restauration du brouillon restent à tester avec de vraies sessions. La migration est versionnée dans `supabase/migrations/20261123215100_luka_private_profile_details.sql`.
 
 ```sql
 CREATE TABLE public.luka_private_profiles (

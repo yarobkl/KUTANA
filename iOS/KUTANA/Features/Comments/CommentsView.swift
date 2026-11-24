@@ -39,17 +39,21 @@ struct LukaCommentsView: View {
             }
 
             if loading && !loaded { ProgressView("Chargement des commentaires…") }
-            if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+            if let errorMessage {
+                Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                Button("Réessayer") { Task { await load() } }
+                    .disabled(loading)
+            }
             if loaded && comments.isEmpty {
                 Text("Aucun commentaire pour le moment.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
-            ForEach(comments) { comment in
+            ForEach(loaded ? comments : []) { comment in
                 commentRow(comment)
                     .padding(.leading, comment.parent_id == nil ? 0 : 16)
             }
 
-            if enabled {
+            if enabled && loaded {
                 if let replyingTo {
                     HStack {
                         Text("Réponse à \(replyingTo.author_name)").font(.caption).foregroundStyle(.secondary)
@@ -72,7 +76,7 @@ struct LukaCommentsView: View {
                     }
                 }
                 .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft.count > 2000)
-            } else {
+            } else if loaded {
                 Text("Les nouveaux commentaires sont fermés.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -131,14 +135,16 @@ struct LukaCommentsView: View {
     @MainActor private func load() async {
         guard let config = identity.configuration else { return }
         loading = true
-        defer { loading = false; loaded = true }
+        defer { loading = false }
         do {
             let api = KutanaAPI(configuration: config)
             async let rows = api.publicComments(kind: kind, contentID: contentID)
             async let state = api.commentsEnabled(kind: kind, contentID: contentID)
             (comments, enabled) = try await (rows, state)
+            loaded = true
             errorMessage = nil
         } catch {
+            loaded = false
             errorMessage = "Impossible de charger les commentaires. Réessayez."
         }
     }
