@@ -125,6 +125,24 @@ actor KutanaAuthService {
         return try validatedSession(response)
     }
 
+    func currentUserEmail(accessToken: String) async throws -> String? {
+        guard !accessToken.isEmpty else { throw AuthFailure.invalidSession }
+        let url = config.endpoint.appending(path: "auth/v1/user")
+        var request = URLRequest(url: url)
+        request.setValue(config.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 20
+        let (data, response) = try await http.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw AuthFailure.invalidSession }
+        guard (200...299).contains(httpResponse.statusCode) else { throw AuthFailure.badResponse(httpResponse.statusCode) }
+        struct CurrentUser: Decodable {
+            let email: String?
+            let email_confirmed_at: String?
+        }
+        let user = try JSONDecoder().decode(CurrentUser.self, from: data)
+        return user.email_confirmed_at == nil ? nil : user.email
+    }
+
     func requestPasswordReset(email: String) async throws {
         let _: AuthResponse = try await send(path: "recover", body: ["email": try validatedEmail(email)])
     }

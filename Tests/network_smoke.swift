@@ -98,6 +98,18 @@ final class StubProtocol: URLProtocol {
         }
         let basicProfile = try await profileAPI.basicProfile(accessToken: "profile-token")
         assert(basicProfile?.display_name == "Marie Test")
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/auth/v1/user")
+            assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer profile-token")
+            return (200, Data(#"{"email":"marie@example.invalid","email_confirmed_at":"2026-01-01T00:00:00Z"}"#.utf8))
+        }
+        let currentEmail = try await auth.currentUserEmail(accessToken: "profile-token")
+        assert(currentEmail == "marie@example.invalid")
+        StubProtocol.handler = { _ in
+            (200, Data(#"{"email":"marie@example.invalid","email_confirmed_at":null}"#.utf8))
+        }
+        let unconfirmedEmail = try await auth.currentUserEmail(accessToken: "profile-token")
+        assert(unconfirmedEmail == nil)
         print("Auth/network smoke tests: OK")
     }
 }

@@ -6,7 +6,7 @@ La table contenant nom, prénom, date de naissance, téléphone et localisation 
 
 Vérifications transactionnelles annulées avant et après application : accès du propriétaire, refus de lecture du recruteur sur la table privée, absence de localisation sans consentement, localisation consentie pour le recruteur associé, refus pour un tiers et absence de droit anonyme. Aucune donnée synthétique n'a été conservée.
 
-L'interface de complétion et sa présentation après connexion sont implémentées sur la branche et restent à tester avec des sessions réelles. L'inscription e-mail ne recueille pas encore tous les champs avant la création du compte. L'intégration au répertoire de migrations via le processus CLI reste à terminer.
+L'inscription e-mail recueille les champs requis et conserve temporairement les informations sensibles dans le trousseau de cet appareil ; après confirmation de l'adresse et connexion, elles sont proposées pour enregistrement dans le profil privé. La complétion après connexion, les connexions sociales et la restauration du brouillon restent à tester avec de vraies sessions. L'intégration au répertoire de migrations via le processus CLI reste à terminer.
 
 ```sql
 CREATE TABLE public.luka_private_profiles (

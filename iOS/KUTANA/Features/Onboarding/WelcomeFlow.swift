@@ -39,6 +39,7 @@ struct WelcomeFlow: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .preferredColorScheme(.light)
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kutana-request-login"))) { _ in
             route = .login
@@ -420,17 +421,28 @@ private struct KutanaRegistrationView: View {
     let back: () -> Void
     @State private var firstName = ""
     @State private var lastName = ""
+    @State private var birthDate: Date?
+    @State private var phoneRegion = "CG"
+    @State private var phone = ""
+    @State private var country = "CG"
+    @State private var city = ""
+    @State private var commune = ""
+    @State private var shareLocation = false
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
     @FocusState private var focusedField: RegistrationField?
-    private enum RegistrationField: Hashable { case firstName, lastName, email, password, confirmation }
+    private enum RegistrationField: Hashable { case firstName, lastName, phone, city, commune, email, password, confirmation }
     @State private var validationError: String?
+    @State private var staging = false
     @EnvironmentObject private var identity: KutanaSessionStore
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Button(action: back) { Image(systemName: "chevron.left").font(.title3) }
+                    .accessibilityLabel("Retour")
+                    .disabled(identity.busy)
                 KutanaAuthHeader(title: "Créer un compte", subtitle: "Rejoignez LUKA pour trouver un emploi, publier vos annonces et échanger facilement.")
                     .padding(.top, 33)
                 TextField("Prénom", text: $firstName)
@@ -440,9 +452,45 @@ private struct KutanaRegistrationView: View {
                 TextField("Nom", text: $lastName)
                     .textContentType(.familyName).textInputAutocapitalization(.words)
                     .submitLabel(.next).focused($focusedField, equals: .lastName)
-                    .onSubmit { focusedField = .email }.kutanaField()
+                    .onSubmit { focusedField = .phone }.kutanaField()
+
+                if birthDate != nil {
+                    DatePicker("Date de naissance", selection: Binding(
+                        get: { birthDate ?? LukaProfileSupport.defaultBirthDate },
+                        set: { birthDate = $0 }),
+                        in: LukaProfileSupport.earliestBirthDate...Date(), displayedComponents: .date)
+                        .padding(.vertical, 8)
+                } else {
+                    Button("Indiquer ma date de naissance") {
+                        birthDate = LukaProfileSupport.defaultBirthDate
+                    }.kutanaField()
+                }
+
+                Picker("Indicatif téléphonique", selection: $phoneRegion) {
+                    ForEach(LukaProfileSupport.phoneRegions, id: \.self) { region in
+                        if let code = LukaProfileSupport.phoneUtility.countryCode(for: region) {
+                            Text("\(LukaProfileSupport.regionName(region)) +\(code)").tag(region)
+                        }
+                    }
+                }.pickerStyle(.menu).kutanaField()
+                TextField("Numéro de téléphone", text: $phone)
+                    .keyboardType(.phonePad).textContentType(.telephoneNumber)
+                    .focused($focusedField, equals: .phone).kutanaField()
+
+                Picker("Pays", selection: $country) {
+                    ForEach(LukaProfileSupport.regions, id: \.self) { region in
+                        Text(LukaProfileSupport.regionName(region)).tag(region)
+                    }
+                }.pickerStyle(.menu).kutanaField()
+                TextField("Ville", text: $city)
+                    .textInputAutocapitalization(.words).submitLabel(.next)
+                    .focused($focusedField, equals: .city).onSubmit { focusedField = .commune }.kutanaField()
+                TextField("Commune", text: $commune)
+                    .textInputAutocapitalization(.words).submitLabel(.next)
+                    .focused($focusedField, equals: .commune).onSubmit { focusedField = .email }.kutanaField()
                 TextField("Adresse e-mail", text: $email)
-                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .textContentType(.emailAddress).keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .submitLabel(.next).focused($focusedField, equals: .email)
                     .onSubmit { focusedField = .password }.kutanaField()
                 SecureField("Mot de passe", text: $password).textContentType(.newPassword)
@@ -451,38 +499,104 @@ private struct KutanaRegistrationView: View {
                 SecureField("Confirmer le mot de passe", text: $confirmation).textContentType(.newPassword)
                     .submitLabel(.done).focused($focusedField, equals: .confirmation)
                     .onSubmit { focusedField = nil }.kutanaField()
+
+                Toggle("Partager ma localisation avec les recruteurs", isOn: $shareLocation)
+                Text("Pour vos candidatures, les recruteurs peuvent voir votre pays, ville et commune si vous l'autorisez. Votre téléphone et votre date de naissance restent privés.")
+                    .font(.caption).foregroundStyle(.secondary)
                 if let error = validationError ?? identity.errorMessage {
                     Text(error).font(.footnote).foregroundStyle(.red)
                 }
                 KutanaPrimaryButton(title: identity.busy ? "Création en cours…" : "Créer mon compte") {
-                    guard password == confirmation else {
-                        validationError = "Les deux mots de passe ne correspondent pas."
-                        return
-                    }
-                    validationError = nil
-                    Task {
-                        if await identity.signUp(email: email, password: password, fullName: "\(firstName.trimmingCharacters(in: .whitespacesAndNewlines)) \(lastName.trimmingCharacters(in: .whitespacesAndNewlines))") {
-                            back()
-                        }
-                    }
+                    Task { await submit() }
                 }
-                    .disabled(!identity.isConfigured || identity.busy || firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty)
-                    .padding(.top, 30)
+                .disabled(!identity.isConfigured || identity.busy || staging || email.isEmpty || password.isEmpty || confirmation.isEmpty)
+                .padding(.top, 24)
                 Text("Mot de passe : 12 caractères minimum.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("ou vous inscrire avec")
                     .font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity).padding(.top, 12)
-                KutanaSocialSignInButtons()
-                    .padding(.bottom, 4)
+                KutanaSocialSignInButtons().padding(.bottom, 4)
                 HStack {
                     Spacer()
                     Text("Vous avez déjà un compte ?").foregroundStyle(.secondary)
                     Button("Se connecter", action: back).fontWeight(.semibold)
                     Spacer()
-                }.font(.footnote).padding(.top, 65)
+                }.font(.footnote).padding(.top, 40)
             }.padding(.horizontal, 25).padding(.top, 20)
-        }.background(.white)
+        }
+        .background(.white)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Suivant") {
+                    switch focusedField {
+                    case .firstName: focusedField = .lastName
+                    case .lastName: focusedField = .phone
+                    case .phone: focusedField = .city
+                    case .city: focusedField = .commune
+                    case .commune: focusedField = .email
+                    case .email: focusedField = .password
+                    case .password: focusedField = .confirmation
+                    default: focusedField = nil
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor private func submit() async {
+        guard !staging else { return }
+        staging = true
+        defer { staging = false }
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanCommune = commune.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard (1...80).contains(first.count), (1...80).contains(last.count),
+              (1...120).contains(cleanCity.count), (1...120).contains(cleanCommune.count),
+              let birthDate else {
+            validationError = "Renseignez votre identité, votre date de naissance, votre ville et votre commune."
+            return
+        }
+        guard password == confirmation else {
+            validationError = "Les deux mots de passe ne correspondent pas."
+            return
+        }
+        guard password.count >= 12 else {
+            validationError = "Le mot de passe doit contenir au moins 12 caractères."
+            return
+        }
+        let normalizedPhone: String
+        do {
+            let parsed = try LukaProfileSupport.phoneUtility.parse(phone, withRegion: phoneRegion)
+            guard let selectedCode = LukaProfileSupport.phoneUtility.countryCode(for: phoneRegion),
+                  parsed.countryCode == selectedCode else {
+                validationError = "Le numéro ne correspond pas à l'indicatif choisi."
+                return
+            }
+            normalizedPhone = LukaProfileSupport.phoneUtility.format(parsed, toType: .e164)
+        } catch {
+            validationError = "Indiquez un numéro de téléphone valide pour l'indicatif choisi."
+            return
+        }
+
+        let draft = LukaSignupDraft(email: cleanEmail, first_name: first, last_name: last,
+            birth_date: LukaProfileSupport.dateFormatter().string(from: birthDate),
+            phone_e164: normalizedPhone, phone_region: phoneRegion, country_code: country,
+            city: cleanCity, commune: cleanCommune, share_location_with_recruiters: shareLocation)
+        let previousDrafts = LukaSignupDraftStore.backup()
+        do { try LukaSignupDraftStore.save(draft) }
+        catch {
+            LukaSignupDraftStore.restore(previousDrafts)
+            validationError = error.localizedDescription
+            return
+        }
+        validationError = nil
+        let created = await identity.signUp(email: cleanEmail, password: password, fullName: "\(first) \(last)")
+        if created { back() }
+        else { LukaSignupDraftStore.restore(previousDrafts) }
     }
 }
 
