@@ -173,6 +173,24 @@ actor KutanaAPI {
         ], accessToken: accessToken)
     }
 
+    func publicJob(id: UUID) async throws -> JobRecord? {
+        let rows: [JobRecord] = try await get("jobs", query: [
+            URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())"),
+            URLQueryItem(name: "status", value: "eq.published"), URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first
+    }
+
+    func publicListing(id: UUID) async throws -> ListingRecord? {
+        let rows: [ListingRecord] = try await get("listings", query: [
+            URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),
+            URLQueryItem(name: "id", value: "eq.\(id.uuidString.lowercased())"),
+            URLQueryItem(name: "status", value: "in.(published,sold)"), URLQueryItem(name: "limit", value: "1")
+        ])
+        return rows.first
+    }
+
     func publishedJobs(limit: Int = 30) async throws -> [JobRecord] {
         try await get("jobs", query: [
             URLQueryItem(name: "select", value: "id,author_id,title,company,city,contract_type,description,status,created_at"),

@@ -242,7 +242,7 @@ struct JobDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: "\(job.title) — \(job.company) · \(job.city) · \(job.contract_type)") {
+                ShareLink(item: URL(string: "https://luka-partage.vercel.app/emploi/\(job.id.uuidString.lowercased())")!) {
                     Label("Partager l'offre", systemImage: "square.and.arrow.up")
                 }
                 .disabled(preview)

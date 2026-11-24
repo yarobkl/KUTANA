@@ -133,6 +133,14 @@ final class StubProtocol: URLProtocol {
         assert(listingFavorites.map(\.listing_id) == [commentID])
         try await profileAPI.addListingFavorite(listingID: commentID, userID: commentID, accessToken: "profile-token")
         try await profileAPI.removeListingFavorite(listingID: commentID, accessToken: "profile-token")
+        StubProtocol.handler = { request in
+            assert(request.value(forHTTPHeaderField: "Authorization") == nil)
+            assert(request.url?.query?.contains("status=") == true)
+            return (200, Data("[]".utf8))
+        }
+        let missingSharedJob = try await profileAPI.publicJob(id: commentID)
+        let missingSharedListing = try await profileAPI.publicListing(id: commentID)
+        assert(missingSharedJob == nil && missingSharedListing == nil)
         print("Auth/network smoke tests: OK")
     }
 }

@@ -55,6 +55,8 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        com.apple.developer.associated-domains:
+          - applinks:luka-partage.vercel.app
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.yaroconsulting.kutana

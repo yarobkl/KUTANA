@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("kutana.notificationPromptSeen") private var notificationPromptSeen = false
     @State private var selection = 0
+    @State private var shareDestination: LukaShareDestination?
     @State private var unreadNotifications = 0
     @State private var showingNotificationPrompt = false
     @State private var knownNotificationIDs: Set<UUID> = []
@@ -26,6 +27,16 @@ struct RootView: View {
             Group { if identity.authenticated { ProfileView() } else { KutanaGuestGate(title: "Profil", description: "Connectez-vous pour accéder à votre compte.") } }.modifier(KutanaTabEntrance())
                 .tabItem { Label("Profil", systemImage: "person.crop.circle") }
                 .badge(unreadNotifications).tag(4)
+        }
+        .onOpenURL { url in
+            guard url.scheme == "https", url.host == "luka-partage.vercel.app" else { return }
+            let parts = url.pathComponents.filter { $0 != "/" }
+            guard parts.count == 2, let id = UUID(uuidString: parts[1]),
+                  let kind = LukaShareDestination.Kind(rawValue: parts[0]) else { return }
+            shareDestination = LukaShareDestination(kind: kind, id: id)
+        }
+        .sheet(item: $shareDestination) { destination in
+            NavigationStack { LukaSharedPublicationView(destination: destination) }
         }
         .tint(KutanaTheme.blue)
         .sensoryFeedback(.selection, trigger: selection)
@@ -79,6 +90,49 @@ struct RootView: View {
         content.sound = .default
         let request = UNNotificationRequest(identifier: item.id.uuidString, content: content, trigger: nil)
         try? await center.add(request)
+    }
+}
+
+private struct LukaShareDestination: Identifiable {
+    enum Kind: String { case job = "emploi", listing = "annonce" }
+    let kind: Kind
+    let id: UUID
+}
+
+private struct LukaSharedPublicationView: View {
+    let destination: LukaShareDestination
+    @EnvironmentObject private var identity: KutanaSessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var job: JobRecord?
+    @State private var listing: ListingRecord?
+    @State private var loading = true
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if loading { ProgressView("Chargement…") }
+            else if let job { JobDetailView(job: job, preview: false) }
+            else if let listing { ListingDetailView(item: listing) }
+            else {
+                ContentUnavailableView(failed ? "Chargement impossible" : "Publication indisponible",
+                                       systemImage: failed ? "wifi.exclamationmark" : "doc.questionmark",
+                                       description: Text(failed ? "Vérifiez votre connexion et réessayez." : "Cette publication n’est plus accessible."))
+            }
+        }
+        .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
+        .task { await load() }
+    }
+
+    @MainActor private func load() async {
+        guard let configuration = identity.configuration else { failed = true; loading = false; return }
+        do {
+            let api = KutanaAPI(configuration: configuration)
+            switch destination.kind {
+            case .job: job = try await api.publicJob(id: destination.id)
+            case .listing: listing = try await api.publicListing(id: destination.id)
+            }
+        } catch { failed = true }
+        loading = false
     }
 }
 

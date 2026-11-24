@@ -206,7 +206,7 @@ struct MarketView: View {
     }
 }
 
-private struct ListingDetailView: View {
+struct ListingDetailView: View {
     let item: ListingRecord
     @EnvironmentObject private var identity: KutanaSessionStore
     @State private var contacting = false
@@ -342,7 +342,7 @@ private struct ListingDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: "\(item.title) — \(KutanaFormat.xaf(item.price_xaf)) · \(item.city)") {
+                ShareLink(item: URL(string: "https://luka-partage.vercel.app/annonce/\(item.id.uuidString.lowercased())")!) {
                     Label("Partager l'annonce", systemImage: "square.and.arrow.up")
                 }
             }
