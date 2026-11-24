@@ -141,6 +141,16 @@ final class StubProtocol: URLProtocol {
         let missingSharedJob = try await profileAPI.publicJob(id: commentID)
         let missingSharedListing = try await profileAPI.publicListing(id: commentID)
         assert(missingSharedJob == nil && missingSharedListing == nil)
+        StubProtocol.handler = { request in
+            assert(request.url?.path == "/rest/v1/listings")
+            assert(request.value(forHTTPHeaderField: "Authorization") == nil)
+            assert(request.url?.query?.contains("id=") == true)
+            return (200, Data("[]".utf8))
+        }
+        let noSavedListings = try await profileAPI.publicListings(ids: [commentID])
+        assert(noSavedListings.isEmpty)
+        let noQueries = try await profileAPI.publicListings(ids: [])
+        assert(noQueries.isEmpty)
         print("Auth/network smoke tests: OK")
     }
 }

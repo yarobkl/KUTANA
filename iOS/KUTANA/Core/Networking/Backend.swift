@@ -296,6 +296,22 @@ actor KutanaAPI {
         }
     }
 
+    func publicListings(ids: [UUID]) async throws -> [ListingRecord] {
+        guard !ids.isEmpty else { return [] }
+        var result: [ListingRecord] = []
+        for start in stride(from: 0, to: ids.count, by: 50) {
+            let batch = ids[start..<min(start + 50, ids.count)].map { $0.uuidString.lowercased() }.joined(separator: ",")
+            let rows: [ListingRecord] = try await get("listings", query: [
+                URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),
+                URLQueryItem(name: "id", value: "in.(\(batch))"),
+                URLQueryItem(name: "status", value: "in.(published,sold)"),
+                URLQueryItem(name: "limit", value: "50")
+            ])
+            result.append(contentsOf: rows)
+        }
+        return result.sorted { $0.created_at > $1.created_at }
+    }
+
     func publishedListings(limit: Int = 30) async throws -> [ListingRecord] {
         try await get("listings", query: [
             URLQueryItem(name: "select", value: "id,seller_id,category,title,description,city,price_xaf,status,created_at,expires_at,listing_images(storage_path)"),

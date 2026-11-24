@@ -11,6 +11,8 @@ struct MarketView: View {
     @State private var query = ""
     @State private var favoritesOnly = false
     @State private var favoriteIDs: Set<String> = []
+    @State private var favoriteListings: [ListingRecord] = []
+    @State private var favoritesLoadRevision = 0
     @AppStorage("kutana.listingFavorites") private var legacyFavorites = ""
     @State private var confirmImport = false
     @State private var importingFavorites = false
@@ -21,7 +23,7 @@ struct MarketView: View {
     private let categories = ["Toutes", "Téléphones", "Informatique", "Électroménager", "Meubles", "Véhicules", "Mode", "Maison", "Matériel professionnel", "Autres"]
 
     private var visible: [ListingRecord] {
-        listings.filter { item in
+        (favoritesOnly ? favoriteListings : listings).filter { item in
             let matchesCategory = category == "Toutes" || item.category == category
             let matchesQuery = query.isEmpty || [item.title, item.category, item.city, item.description]
                 .contains { $0.localizedCaseInsensitiveContains(query) }
@@ -32,7 +34,7 @@ struct MarketView: View {
         }
     }
 
-    private var cities: [String] { Array(Set(listings.map(\.city))).sorted() }
+    private var cities: [String] { Array(Set((favoritesOnly ? favoriteListings : listings).map(\.city))).sorted() }
 
     var body: some View {
         NavigationStack {
@@ -68,7 +70,7 @@ struct MarketView: View {
                 Text("Ces favoris ont été enregistrés sur cet appareil et peuvent appartenir à une autre personne. Importez-les seulement si ce sont les vôtres.")
             }
             .onChange(of: identity.authenticated) { _, authenticated in
-                if !authenticated { favoritesOnly = false; favoriteIDs = [] }
+                if !authenticated { favoritesOnly = false; favoriteIDs = []; favoriteListings = []; favoritesLoadRevision += 1 }
                 else { Task { await loadFavorites() } }
             }
             .task { await load(); await loadFavorites() }
@@ -157,7 +159,7 @@ struct MarketView: View {
                     ContentUnavailableView("Aucune annonce", systemImage: "tag",
                         description: Text(category != "Toutes" || cityFilter != nil || priceLimit != nil || !query.isEmpty ?
                             "Essayez d'autres critères de recherche." :
-                            "Les annonces publiées apparaîtront ici."))
+                            (favoritesOnly ? "Vous n’avez pas encore de favoris." : "Les annonces publiées apparaîtront ici.")))
                 }
             }
         }
@@ -223,12 +225,17 @@ struct MarketView: View {
     @MainActor private func loadFavorites() async {
         guard identity.authenticated, let configuration = identity.configuration,
               let token = await identity.freshAccessToken(),
-              let subject = AccessTokenMetadata.subject(token) else { favoriteIDs = []; return }
+              let subject = AccessTokenMetadata.subject(token) else { favoriteIDs = []; favoriteListings = []; return }
+        favoritesLoadRevision += 1
+        let revision = favoritesLoadRevision
         do {
-            let rows = try await KutanaAPI(configuration: configuration).listingFavorites(accessToken: token)
+            let api = KutanaAPI(configuration: configuration)
+            let rows = try await api.listingFavorites(accessToken: token)
+            let savedListings = try await api.publicListings(ids: rows.map(\.listing_id))
             guard identity.authenticated, let current = identity.active?.token.access_token,
-                  AccessTokenMetadata.subject(current) == subject else { return }
+                  AccessTokenMetadata.subject(current) == subject, revision == favoritesLoadRevision else { return }
             favoriteIDs = Set(rows.map { $0.listing_id.uuidString.lowercased() })
+            favoriteListings = savedListings
         } catch {
             errorMessage = "Impossible de charger vos favoris. Réessayez."
         }
