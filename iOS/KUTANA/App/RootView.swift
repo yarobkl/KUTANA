@@ -435,11 +435,16 @@ struct MyPublicationsView: View {
     }
 
     private func listingRow(_ item: ListingRecord) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let isExpired = item.status == "published" && (item.expires_at.map { $0 <= Date() } ?? false)
+        return VStack(alignment: .leading, spacing: 8) {
             Text(item.title).font(.headline)
             Text("\(KutanaFormat.xaf(item.price_xaf)) · \(item.city)")
                 .font(.subheadline).foregroundStyle(.secondary)
-            Text(statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            Text(isExpired ? "Expirée" : statusLabel(item.status)).font(.caption).foregroundStyle(.secondary)
+            if isExpired {
+                Text("Cette annonce n’est plus visible. Archivez-la pour pouvoir la remettre en ligne.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if (item.status == "published" || item.status == "sold"), let expiresAt = item.expires_at {
                 Text("En ligne jusqu'au \(expiresAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption).foregroundStyle(.secondary)
@@ -474,6 +479,8 @@ struct MyPublicationsView: View {
                         Task { await changeListing(id: item.id, status: "published") }
                     }
                     .disabled(changingID != nil)
+                    Text("Trois remises en ligne maximum par compte sur 24 heures.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
