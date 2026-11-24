@@ -22,6 +22,7 @@ jobs:
       ASC_API_KEY_ID: ${{ secrets.KUTANA_ASC_API_KEY_ID }}
       ASC_API_ISSUER_ID: ${{ secrets.KUTANA_ASC_API_ISSUER_ID }}
       ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_BASE64 }}
+      ASC_API_PRIVATE_KEY_P8: ${{ secrets.KUTANA_ASC_API_PRIVATE_KEY_P8 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,12 +30,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for key in APPLE_TEAM_ID DISTRIBUTION_P12_BASE64 DISTRIBUTION_P12_PASSWORD APPSTORE_PROFILE_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_PRIVATE_KEY_BASE64; do
+          for key in APPLE_TEAM_ID DISTRIBUTION_P12_BASE64 DISTRIBUTION_P12_PASSWORD APPSTORE_PROFILE_BASE64 ASC_API_KEY_ID ASC_API_ISSUER_ID; do
             if [[ -z "${!key:-}" ]]; then
               echo "::error::Missing repository secret for $key; see docs/TESTFLIGHT-SETUP.md"
               exit 1
             fi
           done
+          if [[ -z "${ASC_API_PRIVATE_KEY_BASE64:-}" && -z "${ASC_API_PRIVATE_KEY_P8:-}" ]]; then
+            echo "::error::Missing App Store Connect API private key; see docs/TESTFLIGHT-SETUP.md"
+            exit 1
+          fi
           xcodebuild -version
           XCODE_MAJOR="$(xcodebuild -version | awk '/^Xcode / {split($2, v, "."); print v[1]}')"
           if [[ -z "$XCODE_MAJOR" || "$XCODE_MAJOR" -lt 26 ]]; then
@@ -123,8 +128,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.appstoreconnect/private_keys"
-          printf '%s' "$ASC_API_PRIVATE_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
-          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          if [[ -n "${ASC_API_PRIVATE_KEY_BASE64:-}" ]]; then
+            printf '%s' "$ASC_API_PRIVATE_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          elif [[ "$ASC_API_PRIVATE_KEY_P8" == *"-----BEGIN PRIVATE KEY-----"* ]]; then
+            printf '%s\n' "$ASC_API_PRIVATE_KEY_P8" > "$KEY_PATH"
+          else
+            printf '%s' "$ASC_API_PRIVATE_KEY_P8" | base64 --decode > "$KEY_PATH"
+          fi
+          chmod 600 "$KEY_PATH"
+          if ! openssl pkey -in "$KEY_PATH" -noout >/dev/null 2>&1; then
+            echo "::error::Invalid App Store Connect API private key."
+            exit 1
+          fi
           xcrun altool --upload-app \
             --file "$RUNNER_TEMP/kutana-export/KUTANA.ipa" \
             --type ios \
