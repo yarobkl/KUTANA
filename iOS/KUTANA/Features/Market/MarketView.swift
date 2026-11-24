@@ -11,6 +11,9 @@ struct MarketView: View {
     @State private var query = ""
     @State private var favoritesOnly = false
     @State private var favoriteIDs: Set<String> = []
+    @AppStorage("kutana.listingFavorites") private var legacyFavorites = ""
+    @State private var confirmImport = false
+    @State private var importingFavorites = false
     @State private var loading = false
     @State private var hasLoaded = false
     @State private var errorMessage: String?
@@ -57,7 +60,13 @@ struct MarketView: View {
                     }
                 }
             }
-            .refreshable { await load() }
+            .refreshable { await load(); await loadFavorites() }
+            .confirmationDialog("Importer les anciens favoris ?", isPresented: $confirmImport) {
+                Button("Importer dans mon compte") { Task { await importLegacyFavorites() } }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("Ces favoris ont été enregistrés sur cet appareil et peuvent appartenir à une autre personne. Importez-les seulement si ce sont les vôtres.")
+            }
             .onChange(of: identity.authenticated) { _, authenticated in
                 if !authenticated { favoritesOnly = false; favoriteIDs = [] }
                 else { Task { await loadFavorites() } }
@@ -121,6 +130,11 @@ struct MarketView: View {
 
     private var resultsSection: some View {
         Section("Annonces récentes") {
+            if favoritesOnly && identity.authenticated && !legacyFavorites.isEmpty {
+                Button(importingFavorites ? "Importation…" : "Importer les anciens favoris de cet appareil") {
+                    confirmImport = true
+                }.disabled(importingFavorites)
+            }
             if loading && !hasLoaded {
                 ForEach(0..<4, id: \.self) { _ in
                     KutanaLoadingRow(withThumbnail: true)
@@ -177,6 +191,33 @@ struct MarketView: View {
             }
         }
         .padding(.vertical, 5)
+    }
+
+    @MainActor private func importLegacyFavorites() async {
+        guard !importingFavorites, let configuration = identity.configuration,
+              let token = await identity.freshAccessToken(),
+              let subject = AccessTokenMetadata.subject(token) else { return }
+        let original = legacyFavorites
+        let values = Set(original.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+        guard !values.isEmpty else { errorMessage = "Aucun ancien favori valide à importer."; return }
+        importingFavorites = true
+        defer { importingFavorites = false }
+        let api = KutanaAPI(configuration: configuration)
+        var failures = 0
+        for listingID in values {
+            guard identity.authenticated, let current = identity.active?.token.access_token,
+                  AccessTokenMetadata.subject(current) == subject else { return }
+            do { try await api.addListingFavorite(listingID: listingID, userID: subject, accessToken: token) }
+            catch { failures += 1 }
+        }
+        guard identity.authenticated, let current = identity.active?.token.access_token,
+              AccessTokenMetadata.subject(current) == subject else { return }
+        if failures == 0 && legacyFavorites == original {
+            legacyFavorites = ""
+        } else {
+            errorMessage = "Certains favoris n’ont pas pu être importés. Les données sur cet appareil sont conservées."
+        }
+        await loadFavorites()
     }
 
     @MainActor private func loadFavorites() async {
