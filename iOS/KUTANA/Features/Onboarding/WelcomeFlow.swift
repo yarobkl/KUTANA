@@ -19,6 +19,7 @@ struct WelcomeFlow: View {
 
     var body: some View {
         RootView(allowNotificationPrompt: splashFinished)
+        .accessibilityHidden(!splashFinished)
         .allowsHitTesting(!identity.authenticated || profileReady)
         .sheet(isPresented: $showAuthentication, onDismiss: {
             if identity.authenticated {
@@ -258,6 +259,7 @@ private struct KutanaSplashView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("LUKA. Tout ce que tu cherches, au même endroit.")
+        .accessibilityIdentifier("luka-splash")
     }
 }
 

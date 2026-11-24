@@ -23,6 +23,7 @@ final class GuestFlowUITests: XCTestCase {
     func testRegistrationKeyboardMovesBetweenNameFields() throws {
         let app = XCUIApplication()
         app.launch()
+        XCTAssertTrue(app.navigationBars["Emploi"].waitForExistence(timeout: 20))
         let profile = app.tabBars.buttons["Profil"]
         XCTAssertTrue(profile.waitForExistence(timeout: 20))
         profile.tap()
