@@ -3,7 +3,7 @@ name: KUTANA TestFlight (Apple cloud signing)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/ios-ux-registration-20261123]
     paths:
       - 'ci/trigger-kutana-testflight.txt'
       - 'project.yml'
@@ -159,9 +159,17 @@ jobs:
               if rights.get('com.apple.developer.applesignin') != ['Default']:
                   raise SystemExit(f'{label}: missing Sign in with Apple entitlement; upload stopped.')
               print(f'{label}: correct bundle ID and Apple sign-in entitlement verified.')
+          domain = 'applinks:luka-partage.vercel.app'
+          entitlement = 'com.apple.developer.associated-domains'
+          if domain not in signed.get(entitlement, []):
+              raise SystemExit('Signed app lacks the LUKA sharing domain.')
+          allowed = profile['Entitlements'].get(entitlement, [])
+          if '*' not in allowed and domain not in allowed:
+              raise SystemExit('Profile does not authorize the LUKA sharing domain.')
           PY
 
       - name: Upload verified IPA to App Store Connect
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
