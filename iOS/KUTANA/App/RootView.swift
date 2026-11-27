@@ -35,7 +35,6 @@ struct RootView: View {
                 try? await Task.sleep(for: .seconds(25))
             }
         }
-        .onChange(of: selection) { _, _ in Task { await refreshUnread() } }
         .onAppear { offerNotificationPrompt() }
         .onChange(of: allowNotificationPrompt) { _, _ in offerNotificationPrompt() }
         .alert("Rester informé sur KUTANA ?", isPresented: $showingNotificationPrompt) {
